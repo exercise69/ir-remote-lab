@@ -11,6 +11,10 @@ be connected to my own home-automation / IoT setup. Nothing in this repository i
 to that device, and it contains **no codes** of any manufacturer – every user learns the
 signals of their own remote.
 
+*Deutsch: Lernprojekt zum Auslesen und Analysieren von Infrarot-Fernbedienungen.
+Ausprobiert habe ich es mit der IR-Fernbedienung meiner eigenen Dunstabzugshaube
+(berbel Deckenlifthaube, 2013), um sie eventuell in mein privates Smart-Home einzubinden.*
+
 ## ⚠️ Disclaimer – no warranty, no liability
 
 This is a private hobby project, shared **as is**, free of charge and **without any
