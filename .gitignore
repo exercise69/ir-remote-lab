@@ -1,0 +1,23 @@
+# Python-Umgebung fuer VS Code (Stubs, circup) – mit "python3 -m venv .venv" neu anlegbar
+.venv/
+__pycache__/
+*.pyc
+
+# Sicherung des alten Board-Inhalts: enthaelt settings.toml mit WLAN-Passwort
+backup-qtpy-*/
+settings.toml
+
+# macOS
+.DS_Store
+._*
+
+# Logs
+*.log
+
+# Persoenliches (Pfade, Workspace) und Sicherung der alten Historie
+.vscode/
+*.code-workspace
+backup/
+
+# Aufnahmen und gelernte Codes bleiben lokal (eigene Fernbedienung, nicht im Repo)
+captures/*

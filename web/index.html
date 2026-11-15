@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IR-Labor</title>
+<style>
+/* Layout: Bedienleiste links (Taste weiterschalten, Senden), rechts die Aufnahmen mit Signalbild; auf dem Handy untereinander */
+:root {
+  --bg: #edf1ef;
+  --panel: #ffffff;
+  --sunk: #f5f7f6;
+  --fg: #17201c;
+  --muted: #627069;
+  --rule: #cfd7d3;
+  --ir: #b3203a;          /* IR / Senden / Signal "an" */
+  --ir-soft: #f7e1e5;
+  --ok: #1b7a4a;
+  --ok-soft: #dcf1e5;
+  --bad: #c0262d;
+  --bad-soft: #fbe0e0;
+  --diff: #b86e00;        /* abweichende Pulse */
+  --diff-soft: #fdf0d8;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101513; --panel: #18201c; --sunk: #131a17; --fg: #e2e9e5; --muted: #8f9c95; --rule: #2c3631;
+    --ir: #ff6d84; --ir-soft: #3b1c23; --ok: #5ccf94; --ok-soft: #173326; --bad: #ff7b7b; --bad-soft: #3d1a1a;
+    --diff: #f2b54a; --diff-soft: #3a2c12;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101513; --panel: #18201c; --sunk: #131a17; --fg: #e2e9e5; --muted: #8f9c95; --rule: #2c3631;
+  --ir: #ff6d84; --ir-soft: #3b1c23; --ok: #5ccf94; --ok-soft: #173326; --bad: #ff7b7b; --bad-soft: #3d1a1a;
+  --diff: #f2b54a; --diff-soft: #3a2c12;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); }
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 48px;
+  display: grid; gap: 16px;
+}
+
+/* Kopf */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+h1 small { font-weight: 400; color: var(--muted); font-size: 14px; margin-left: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-family: var(--mono);
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--rule); background: var(--panel); color: var(--muted);
+}
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip.on i { background: var(--ok); }
+.chip.off i { background: var(--bad); }
+.chip.busy i { background: var(--diff); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .chip.busy i { animation: none; } }
+
+.offline {
+  background: var(--bad-soft); border-left: 4px solid var(--bad); padding: 10px 14px; border-radius: 4px;
+}
+
+/* Raster */
+.grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 16px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0; font-weight: 600; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+
+/* Knöpfe */
+button, select, input, textarea { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--rule); background: var(--sunk); border-radius: 6px; padding: 9px 14px; cursor: pointer;
+  min-height: 42px; touch-action: manipulation;
+}
+button:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--ir); outline-offset: 2px;
+}
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+button.send { background: var(--ir); color: #fff; border-color: var(--ir); font-weight: 600; }
+:root[data-theme="dark"] button.send { color: #1a0b0e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.send { color: #1a0b0e; } }
+button.small { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+button.ghost { background: transparent; }
+
+
+/* Nachgebaute Fernbedienung */
+.modes { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--rule); border-radius: 8px; padding: 3px; gap: 3px; background: var(--sunk); justify-self: start; }
+.modes button { border: 0; min-height: 34px; padding: 4px 18px; background: transparent; font-weight: 600; color: var(--muted); }
+.modes button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.modes button[data-m="send"][aria-pressed="true"] { background: var(--ir); color: #fff; }
+.remote { --rk: 54px; justify-self: center; width: 250px; max-width: 100%; display: grid; gap: 10px; justify-items: center;
+  background: var(--sunk); border: 1px solid var(--rule); border-radius: 125px 125px 28px 28px; padding: 14px 12px 22px; }
+.dial { position: relative; width: 210px; height: 210px; border-radius: 50%; border: 1px solid var(--rule); background: var(--panel); }
+.dial .rk { position: absolute; }
+.dial .k-s1 { top: 8px; left: calc(50% - var(--rk) / 2); }
+.dial .k-s4 { bottom: 8px; left: calc(50% - var(--rk) / 2); }
+.dial .k-s2 { left: 8px; top: calc(50% - var(--rk) / 2); }
+.dial .k-s3 { right: 8px; top: calc(50% - var(--rk) / 2); }
+.dial .k-power { left: calc(50% - 36px); top: calc(50% - 36px); width: 72px; height: 72px; }
+.arrows { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 100%; }
+.arrows .rk { width: 100%; border-radius: 8px; height: 46px; }
+.arrows .rk:first-child { border-radius: 22px 6px 6px 10px; }
+.arrows .rk:last-child { border-radius: 6px 22px 10px 6px; }
+.pad { display: grid; grid-template-columns: repeat(4, var(--rk)); gap: 6px 2px; justify-content: center; padding-bottom: 12px; }
+.pad .rk:nth-child(4n+2), .pad .rk:nth-child(4n+3) { transform: translateY(12px); }
+.rk { position: relative; width: var(--rk); height: var(--rk); min-height: 0; padding: 0; border-radius: 50%;
+  display: grid; place-items: center; background: var(--panel); border: 2px solid var(--rule); font-weight: 700; font-size: 18px; }
+.rk svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rk i { position: absolute; right: 2px; top: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--rule); border: 2px solid var(--panel); }
+.rk.st-one i { background: var(--ok-soft); box-shadow: inset 0 0 0 2px var(--ok); }
+.rk.st-ok i { background: var(--ok); }
+.rk.st-diff i { background: var(--diff); }
+.rk.nofn { color: var(--muted); }
+.rk.sel { border-color: var(--ir); box-shadow: 0 0 0 3px var(--ir-soft); animation: pulse 1.2s infinite; }
+.remote.send .rk:not(.has) { opacity: .35; }
+.remote.send .rk.has { border-color: var(--ir); }
+.rinfo { display: grid; gap: 8px; font-size: 14px; }
+.rinfo b { font-size: 16px; }
+.rinfo .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule); display: inline-block; }
+.legend .one { background: var(--ok-soft); box-shadow: inset 0 0 0 2px var(--ok); }
+.legend .ok { background: var(--ok); }
+.legend .diff { background: var(--diff); }
+
+.pinbox { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; z-index: 20; }
+.pinbox[hidden] { display: none; }
+.pinbox form { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: grid; gap: 12px; width: min(320px, 100%); }
+.pinbox input { padding: 10px 12px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sunk); font-size: 20px; letter-spacing: .2em; text-align: center; }
+.pinbox .err { color: var(--bad); font-size: 13px; min-height: 1.2em; margin: 0; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.switch input { width: 18px; height: 18px; accent-color: var(--ir); }
+.liftask { display: grid; gap: 8px; border: 1px solid var(--ir); background: var(--ir-soft); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
+.liftask[hidden] { display: none; }
+.liftask .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Taste */
+.keybox { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: center; }
+.keynum { font-size: 64px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; grid-row: span 3; min-width: 1.2em; text-align: center; }
+.keylabel { font-size: 13px; color: var(--muted); }
+.keyname { width: 100%; padding: 7px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sunk); }
+.keyrow { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 8px; }
+.namestate { grid-column: 2; font-size: 13px; min-height: 1.4em; color: var(--muted); }
+.namestate.saved { color: var(--ok); }
+.namestate.dirty { color: var(--diff); font-weight: 600; }
+.keyname.dirty { border-color: var(--diff); background: var(--diff-soft); }
+.keyname.saved { border-color: var(--ok); }
+.steps { color: var(--muted); font-size: 13px; margin: 0; padding-left: 20px; }
+.steps li + li { margin-top: 2px; }
+.keyrow .primary { font-size: 18px; min-height: 56px; }
+
+/* Senden */
+.sendrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sendrow label { font-size: 13px; color: var(--muted); }
+select { padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sunk); min-height: 42px; }
+details > summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+details[open] > summary { margin-bottom: 10px; }
+textarea {
+  width: 100%; min-height: 90px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--sunk); font-family: var(--mono); font-size: 13px; resize: vertical;
+}
+
+/* Ergebnis */
+.result { border-radius: 6px; padding: 12px 14px; background: var(--sunk); border-left: 4px solid var(--rule); display: grid; gap: 2px; }
+.result.ok { background: var(--ok-soft); border-color: var(--ok); }
+.result.bad { background: var(--bad-soft); border-color: var(--bad); }
+.result .big { font-weight: 700; font-size: 16px; }
+.result .small { font-size: 13px; color: var(--muted); }
+
+/* Aufnahmen */
+.listhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.listhead h2 { margin-right: auto; }
+.filters { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.filters button { border: 0; border-radius: 0; min-height: 32px; padding: 4px 10px; font-size: 13px; background: transparent; }
+.filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.confirm { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+
+.recs { display: grid; gap: 6px; }
+.rec { border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); min-width: 0; }
+.rec > button.head {
+  width: 100%; display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  text-align: left; border: 0; background: transparent; border-radius: 6px; padding: 10px 12px; min-height: 0;
+}
+.rec.open { border-color: var(--muted); }
+.rec .no { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.rec .title { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.rec .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+.rec .note { grid-column: 2 / 4; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .rec > button.head { grid-template-columns: 40px minmax(0, 1fr); }
+  .rec .meta { grid-column: 2; text-align: left; white-space: normal; }
+  .rec .note { grid-column: 2; }
+  .keyrow { grid-template-columns: 48px minmax(0, 1fr) auto; }
+  .listhead h2 { width: 100%; }
+}
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 3px; margin-right: 6px; vertical-align: 1px; letter-spacing: .02em; }
+.badge.ok { background: var(--ok-soft); color: var(--ok); }
+.badge.bad { background: var(--bad-soft); color: var(--bad); }
+.badge.key { background: var(--sunk); color: var(--fg); border: 1px solid var(--rule); }
+.badge.diff { background: var(--diff-soft); color: var(--diff); }
+.rec .body { padding: 0 12px 12px; display: grid; gap: 10px; }
+.wave { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; background: var(--sunk); }
+.wave svg { display: block; }
+.raw {
+  font-family: var(--mono); font-size: 12px; background: var(--sunk); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 8px 10px; max-height: 140px; overflow: auto; overflow-wrap: anywhere; margin: 0;
+}
+.raw .d { color: var(--diff); font-weight: 700; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.empty { color: var(--muted); padding: 24px 12px; text-align: center; border: 1px dashed var(--rule); border-radius: 6px; }
+.empty b { color: var(--fg); }
+
+/* Protokoll */
+.log {
+  font-family: var(--mono); font-size: 12px; background: var(--sunk); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 8px 10px; height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0;
+}
+.log .e { color: var(--bad); }
+.log .o { color: var(--ok); }
+.log .k { color: var(--ir); font-weight: 600; }
+
+/* Meldung */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 6px; font-size: 14px;
+  max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.2); z-index: 5;
+}
+.toast.bad { background: var(--bad); color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>IR-Labor <small id="clock"></small></h1>
+  <div class="chips">
+    <span class="chip" id="chip-conn"><i></i><span>verbinde …</span></span>
+    <span class="chip" id="chip-sd"><i></i>SD</span>
+    <span class="chip" id="chip-busy" hidden><i></i>wartet auf Echo</span>
+  </div>
+</header>
+
+<div class="offline" id="offline" hidden>
+  <b>Board nicht erreichbar.</b> <span id="offline-text">Läuft es und ist es im WLAN? Die Seite versucht es weiter.</span>
+</div>
+
+<div class="grid">
+  <div class="col">
+
+    <section class="card" aria-labelledby="h-remote">
+      <h2 id="h-remote">Fernbedienung</h2>
+      <div class="modes" role="group" aria-label="Modus">
+        <button data-m="learn" aria-pressed="true">Lernen</button>
+        <button data-m="send" aria-pressed="false">Senden</button>
+      </div>
+      <div class="remote" id="remote">
+        <div class="dial" id="dial"></div>
+        <div class="arrows" id="arrows"></div>
+        <div class="pad" id="pad"></div>
+      </div>
+      <div class="liftask" id="liftask" role="alertdialog" aria-labelledby="liftask-text" hidden>
+        <span id="liftask-text"></span>
+        <div class="row">
+          <button class="send small" id="liftask-yes">Ja, fahren</button>
+          <button class="small" id="liftask-no">Abbrechen</button>
+        </div>
+      </div>
+      <div class="rinfo" id="rinfo" aria-live="polite"></div>
+      <label class="switch"><input type="checkbox" id="liftconfirm" checked> Rückfrage vor Hoch/Runter</label>
+      <div class="legend">
+        <span><i></i>nicht gelernt</span><span><i class="one"></i>1× gelernt</span>
+        <span><i class="ok"></i>mehrmals, gleich</span><span><i class="diff"></i>Drücke unterschiedlich</span>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-key">
+      <h2 id="h-key">Tastenzähler</h2>
+      <div class="keybox">
+        <div class="keynum" id="keynum" aria-live="polite">–</div>
+        <div class="keylabel">Jetzt dran: Taste <span id="keynum2">–</span> · <span id="keycount">0</span> Aufnahmen</div>
+        <input class="keyname" id="keyname" type="text" placeholder="Name, z. B. Licht oder Stufe +" aria-label="Name für diese Taste" enterkeyhint="done" autocomplete="off">
+        <div class="namestate" id="namestate" aria-live="polite"></div>
+      </div>
+      <div class="keyrow">
+        <button id="btn-prev" aria-label="Eine Taste zurück">◀</button>
+        <button class="primary" id="btn-next">Weiter ▶</button>
+        <span id="restartbox"></span>
+      </div>
+      <ol class="steps">
+        <li>Namen eintippen und <b>Enter</b> – grünes „✓ gespeichert“ abwarten.</li>
+        <li>Fernbedienung aus 20–30 cm gerade auf die Empfänger richten, Taste 2–3× drücken.</li>
+        <li>„Weiter“ – das Feld ist dann leer für die nächste Taste.</li>
+      </ol>
+    </section>
+
+    <section class="card" aria-labelledby="h-send">
+      <h2 id="h-send">Senden</h2>
+      <div class="sendrow">
+        <label for="khz">Träger</label>
+        <select id="khz">
+          <option>30</option><option>33</option><option selected>36</option>
+          <option>38</option><option>40</option><option>56</option>
+        </select>
+        <span class="hint">kHz</span>
+        <button class="send" id="btn-test">Testmuster senden</button>
+      </div>
+      <p class="hint">Sender und Empfänger stehen nebeneinander: jede Sendung wird gleich wieder empfangen und verglichen.</p>
+      <details id="rawbox">
+        <summary>Eigenen Code senden</summary>
+        <div style="display:grid; gap:8px">
+          <textarea id="raw" placeholder="Pulse in µs, beginnend mit „an“, z. B. 9000 4500 560 560 560 1690 560" spellcheck="false"></textarea>
+          <div class="sendrow">
+            <button class="send" id="btn-raw">Code senden</button>
+            <span class="hint">mit der oben gewählten Trägerfrequenz</span>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" aria-labelledby="h-last">
+      <h2 id="h-last">Letztes Ergebnis</h2>
+      <div class="result" id="last">
+        <div class="big">Noch nichts empfangen</div>
+        <div class="small">Drück eine Taste auf der Fernbedienung oder sende ein Testmuster.</div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="col">
+    <section class="card" aria-labelledby="h-recs">
+      <div class="listhead">
+        <h2 id="h-recs">Aufnahmen</h2>
+        <div class="filters" role="group" aria-label="Filter">
+          <button data-f="all" aria-pressed="true">Alle</button>
+          <button data-f="ir" aria-pressed="false">Fernbedienung</button>
+          <button data-f="echo" aria-pressed="false">Eigentests</button>
+        </div>
+        <span id="clearbox"><button class="small ghost" id="btn-clear">Liste leeren</button></span>
+      </div>
+      <div class="recs" id="recs"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-log">
+      <h2 id="h-log">Protokoll des Boards</h2>
+      <pre class="log" id="log" aria-live="off"></pre>
+    </section>
+  </div>
+</div>
+
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<div class="pinbox" id="pinbox" hidden>
+  <form id="pinform" autocomplete="off">
+    <b>PIN für das Board</b>
+    <span class="hint">Steht in settings.toml (IRLAB_PIN). Dieser Browser merkt sie sich.</span>
+    <input id="pin" type="password" inputmode="numeric" aria-label="PIN" required>
+    <p class="err" id="pinerr"></p>
+    <button class="primary" type="submit">Entsperren</button>
+  </form>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Seite vom Board: relative Adressen. Von VS Code Live Server aus: ?board=<IP>
+  // Die Seite spricht nur mit dem Board, von dem sie geladen wurde (keine fremden Origins).
+  function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  var PIN_KEY = "irlab-pin";
+  var POLL_MS = 1000;
+
+  var S = {
+    session: null, records: [], lastNo: 0, logSeq: 0, key: null,
+    open: {}, cache: {}, filter: "all", connected: false, lastOk: 0, seenLatest: 0
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- Namen der Tasten (liegen auf dem Board, gelten bis "Neu anfangen")
+  var names = {};
+  function keyTitle(k) { return "Taste " + k + (names[k] ? " · " + names[k] : ""); }
+
+  function nameDirty() { return S.key != null && $("keyname").value.trim() !== (names[S.key] || ""); }
+  function showNameState() {
+    var f = $("keyname"), st = $("namestate"), v = f.value.trim();
+    var dirty = nameDirty();
+    f.className = "keyname" + (dirty ? " dirty" : (v ? " saved" : ""));
+    st.className = "namestate" + (dirty ? " dirty" : (v ? " saved" : ""));
+    st.textContent = dirty ? "Noch nicht gespeichert – Enter drücken"
+      : (v ? "✓ gespeichert für Taste " + S.key : "Noch kein Name für Taste " + S.key);
+  }
+  function saveName() {
+    if (!nameDirty()) return Promise.resolve();
+    var k = S.key;
+    return post("/api/key?op=name&n=" + k, $("keyname").value.trim()).then(function (j) {
+      if (j && j.ok && j.names) { names = j.names; showNameState(); renderRecords(); renderLast(); }
+    });
+  }
+
+  // ---------- Meldungen
+  var toastTimer = null;
+  function toast(msg, bad) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.className = "toast" + (bad ? " bad" : "");
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, bad ? 5000 : 2500);
+  }
+
+  // ---------- Verbindung
+  function api(path, opts) {
+    // Zeitlimit: haengt eine Anfrage, bliebe sonst die ganze Seite stehen
+    opts = opts || {};
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 8000);
+    opts.signal = ctl.signal;
+    // X-IR-Lab: das Board nimmt Befehle nur mit dieser Kopfzeile an (Schutz vor fremden Webseiten)
+    opts.headers = opts.headers || {};
+    opts.headers["X-IR-Lab"] = "1";
+    var pin = load(PIN_KEY);
+    if (pin) opts.headers["X-IR-Lab-Pin"] = pin;
+    return fetch(path, opts).finally(function () { clearTimeout(timer); }).then(function (r) {
+      if (r.status === 401 || r.status === 429) {
+        if (r.status === 401 && pin) store(PIN_KEY, null);   // falsche PIN nicht weiter senden (sonst Sperre)
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          askPin(r.status === 429 ? (j.msg || "Zu viele Versuche") : (pin ? "PIN falsch" : ""));
+          var e = new Error("pin"); e.pin = true; throw e;
+        });
+      }
+      return r.json().catch(function () { return { ok: false, msg: "Antwort " + r.status }; })
+        .then(function (j) { if (!r.ok && j.ok === undefined) j.ok = false; return j; });
+    });
+  }
+
+  function post(path, body) {
+    return api(path, { method: "POST", body: body || "", headers: { "Content-Type": "text/plain" } })
+      .then(function (j) {
+        toast(j.msg || (j.ok ? "erledigt" : "Fehler"), !j.ok);
+        setTimeout(poll, 250);
+        return j;
+      })
+      .catch(function (e) { if (!e || !e.pin) toast("Board nicht erreichbar", true); });
+  }
+
+  // ---------- PIN (nur wenn auf dem Board IRLAB_PIN gesetzt ist)
+  function askPin(err) {
+    $("pinerr").textContent = err || "";
+    if ($("pinbox").hidden) { $("pinbox").hidden = false; $("pin").value = ""; $("pin").focus(); }
+  }
+
+  var polling = false;
+  function poll() {
+    if (polling) return;
+    polling = true;
+    var since = S.lastNo, after = S.logSeq;
+    var again = false;
+    api("/api/state?since=" + since + "&log_after=" + after)
+      .then(function (st) { setConnected(true); again = apply(st) === "resync"; })
+      .catch(function (e) { if (!e || !e.pin) setConnected(false); })
+      .then(function () { polling = false; if (again) poll(); });
+  }
+
+  function setConnected(on) {
+    S.connected = on;
+    if (on) S.lastOk = Date.now();
+    var c = $("chip-conn");
+    c.className = "chip " + (on ? "on" : "off");
+    c.lastElementChild.textContent = on ? "verbunden" : "getrennt";
+    $("offline").hidden = on;
+    if (!on && S.lastOk) {
+      $("offline-text").textContent = "Letzter Kontakt vor " + Math.round((Date.now() - S.lastOk) / 1000) +
+        " s. Läuft es und ist es im WLAN? Die Seite versucht es weiter.";
+    }
+    ["btn-prev", "btn-next", "btn-test", "btn-raw"].forEach(function (id) { $(id).disabled = !on; });
+  }
+
+  // ---------- Zustand übernehmen
+  function apply(st) {
+    if (st.session !== S.session) {
+      if (S.session !== null) toast("Board neu gestartet oder Liste geleert");
+      S.session = st.session; S.records = []; S.lastNo = 0; S.cache = {}; S.open = {};
+      if (st.log_seq < S.logSeq) { S.logSeq = 0; $("log").textContent = ""; }
+      renderRecords();
+      return "resync";  // alles neu holen
+    }
+    $("clock").textContent = st.time || "";
+    var sd = $("chip-sd");
+    sd.className = "chip " + (st.sd ? "on" : "off");
+    sd.title = st.sd ? "Aufnahmen gehen auch auf die SD-Karte" : "Keine SD-Karte, Aufnahmen nur hier und in der Konsole";
+    $("chip-busy").hidden = !st.busy;
+    $("chip-busy").className = "chip busy";
+
+    var newNames = st.names || {};
+    var namesChanged = JSON.stringify(newNames) !== JSON.stringify(names);
+    var wasDirty = nameDirty();
+    names = newNames;
+    if (st.key !== S.key) {
+      S.key = st.key;
+      $("keynum").textContent = st.key;
+      $("keynum2").textContent = st.key;
+      $("keyname").value = names[st.key] || "";
+    } else if (!wasDirty) {
+      $("keyname").value = names[st.key] || "";
+    }
+    showNameState();
+    if (namesChanged) { renderRecords(); renderLast(); }
+    var codes = st.codes || {}, learnK = st.learn || 0;
+    if (JSON.stringify(codes) !== JSON.stringify(S.codes) || learnK !== S.learn) {
+      S.codes = codes; S.learn = learnK; renderRemote();
+    }
+
+    var changed = false;
+    (st.records || []).forEach(function (r) {
+      if (r.no > S.lastNo) { S.records.push(r); S.lastNo = r.no; changed = true; }
+    });
+    if (st.first) {
+      var before = S.records.length;
+      S.records = S.records.filter(function (r) { return r.no >= st.first; });
+      if (S.records.length !== before) changed = true;
+    }
+    if (changed) { renderRecords(); renderLast(); }
+    $("keycount").textContent = S.records.filter(function (r) { return r.kind === "ir" && r.key === S.key; }).length;
+
+    if (st.log && st.log.length) appendLog(st.log);
+    S.logSeq = st.log_seq;
+  }
+
+  // ---------- Protokoll
+  function appendLog(lines) {
+    var box = $("log");
+    var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+    lines.forEach(function (l) {
+      var s = document.createElement("span");
+      var t = l[1];
+      if (/FEHLER|nicht|Fehler|fehlt/.test(t)) s.className = "e";
+      else if (/\[ECHO\] OK/.test(t)) s.className = "o";
+      else if (/^>>>|=====/.test(t)) s.className = "k";
+      s.textContent = t + "\n";
+      box.appendChild(s);
+    });
+    while (box.childNodes.length > 400) box.removeChild(box.firstChild);
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  // ---------- Vergleich gleicher Tasten (Toggle-Bit)
+  function diffIdx(a, b) {
+    if (!a || !b || a.length !== b.length) return null;
+    var out = [];
+    for (var i = 0; i < a.length; i++) {
+      var tol = Math.max(150, 0.25 * Math.max(a[i], b[i]));
+      if (Math.abs(a[i] - b[i]) > tol) out.push(i);
+    }
+    return out;
+  }
+
+  function firstOfKey(r) {
+    for (var i = 0; i < S.records.length; i++) {
+      var x = S.records[i];
+      if (x.kind === "ir" && x.key === r.key) return x;
+    }
+    return null;
+  }
+
+  // Pulse holen: ändern sich nie, daher Cache. Der Webserver auf dem Board bearbeitet
+  // nur eine Anfrage auf einmal, deshalb stehen die Abrufe in einer Warteschlange.
+  var queue = Promise.resolve();
+  var inflight = {};
+  function pulses(no) {
+    if (S.cache[no]) return Promise.resolve(S.cache[no]);
+    if (inflight[no]) return inflight[no];
+    var p = queue.then(function () {
+      if (S.cache[no]) return S.cache[no];
+      return api("/api/capture?no=" + no).then(function (j) {
+        if (j.pulses) S.cache[no] = j;
+        return j;
+      });
+    });
+    inflight[no] = p;
+    queue = p.catch(function () {}).then(function () { delete inflight[no]; });
+    return p;
+  }
+
+  // Für Aufnahmen der Fernbedienung den Vergleich mit der ersten Aufnahme derselben Taste
+  function compareNote(r, done) {
+    var ref = firstOfKey(r);
+    if (!ref || ref.no === r.no) return done(null, null);
+    Promise.all([pulses(ref.no), pulses(r.no)]).then(function (res) {
+      var a = res[0].pulses, b = res[1].pulses;
+      if (!a || !b) return done(null, null);
+      var d = diffIdx(a, b);
+      if (d === null) done({ cls: "diff", text: "andere Länge als #" + ref.no + " (" + a.length + " / " + b.length + " Pulse)" }, null);
+      else if (!d.length) done({ cls: "ok", text: "gleich wie #" + ref.no }, d);
+      else done({ cls: "diff", text: "weicht an " + d.length + " Stelle" + (d.length > 1 ? "n" : "") + " von #" + ref.no + " ab" + (d.length <= 2 ? " – Toggle-Bit?" : "") }, d);
+    }).catch(function () { done(null, null); });
+  }
+
+  // ---------- Liste
+  function fmtTime(t) { var m = /(\d\d:\d\d:\d\d)$/.exec(t || ""); return m ? m[1] : (t || ""); }
+  function fmtKhz(k) { return k == null ? "– kHz" : k.toFixed(2).replace(".", ",") + " kHz"; }
+
+  function renderRecords() {
+    var box = $("recs");
+    var list = S.records.filter(function (r) { return S.filter === "all" || r.kind === S.filter; }).slice().reverse();
+    box.textContent = "";
+    if (!list.length) {
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.innerHTML = S.records.length ? "Keine Einträge für diesen Filter."
+        : "<b>Noch keine Aufnahmen.</b><br>Drück eine Taste auf der Fernbedienung oder sende links ein Testmuster.";
+      box.appendChild(e);
+      return;
+    }
+    list.forEach(function (r) { box.appendChild(recordEl(r)); });
+  }
+
+  function recordEl(r) {
+    var el = document.createElement("div");
+    el.className = "rec" + (S.open[r.no] ? " open" : "");
+    var head = document.createElement("button");
+    head.className = "head";
+    head.setAttribute("aria-expanded", S.open[r.no] ? "true" : "false");
+
+    var no = document.createElement("span"); no.className = "no"; no.textContent = "#" + r.no;
+    var title = document.createElement("span"); title.className = "title";
+    var meta = document.createElement("span"); meta.className = "meta";
+    meta.textContent = fmtTime(r.t) + " · " + fmtKhz(r.khz) + " · " + r.n + " P";
+    var note = document.createElement("span"); note.className = "note";
+
+    var badge = document.createElement("span");
+    if (r.kind === "echo") {
+      badge.className = "badge " + (r.ok ? "ok" : "bad");
+      badge.textContent = r.ok ? "OK" : "FEHLER";
+      title.appendChild(badge);
+      title.appendChild(document.createTextNode("Eigentest · " + r.src));
+      note.textContent = r.text;
+    } else {
+      badge.className = "badge key";
+      badge.textContent = "Taste " + r.key;
+      title.appendChild(badge);
+      title.appendChild(document.createTextNode(names[r.key] || r.name || "Fernbedienung"));
+      note.textContent = "";
+      compareNote(r, function (n) {
+        if (!n) return;
+        note.textContent = "";
+        var b = document.createElement("span");
+        b.className = "badge " + n.cls; b.textContent = n.cls === "ok" ? "gleich" : "Unterschied";
+        note.appendChild(b); note.appendChild(document.createTextNode(n.text));
+      });
+    }
+    head.appendChild(no); head.appendChild(title); head.appendChild(meta); head.appendChild(note);
+    el.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "body";
+    body.hidden = !S.open[r.no];
+    el.appendChild(body);
+    if (S.open[r.no]) fillBody(r, body);
+
+    head.addEventListener("click", function () {
+      S.open[r.no] = !S.open[r.no];
+      el.classList.toggle("open", S.open[r.no]);
+      head.setAttribute("aria-expanded", S.open[r.no] ? "true" : "false");
+      body.hidden = !S.open[r.no];
+      if (S.open[r.no]) fillBody(r, body);
+    });
+    return el;
+  }
+
+  function fillBody(r, body) {
+    body.textContent = "Lade Pulse …";
+    pulses(r.no).then(function (j) {
+      body.textContent = "";
+      if (!j.pulses) { body.textContent = j.msg || "Pulse nicht mehr im Speicher"; return; }
+      var lanes = [];
+      var finish = function (d) {
+        if (r.kind === "echo" && j.sent) {
+          lanes.push({ label: "gesendet", p: j.sent });
+          lanes.push({ label: "empfangen", p: j.pulses, diff: diffIdx(j.sent, j.pulses) });
+        } else {
+          var ref = firstOfKey(r);
+          if (ref && ref.no !== r.no && S.cache[ref.no]) lanes.push({ label: "#" + ref.no, p: S.cache[ref.no].pulses });
+          lanes.push({ label: "#" + r.no, p: j.pulses, diff: d });
+        }
+        var wave = document.createElement("div");
+        wave.className = "wave";
+        wave.appendChild(drawWave(lanes));
+        body.appendChild(wave);
+
+        var raw = document.createElement("pre");
+        raw.className = "raw";
+        var dset = {}; (d || lanes[lanes.length - 1].diff || []).forEach(function (i) { dset[i] = 1; });
+        j.pulses.forEach(function (p, i) {
+          var s = document.createElement("span");
+          if (dset[i]) s.className = "d";
+          s.textContent = p + (i < j.pulses.length - 1 ? " " : "");
+          raw.appendChild(s);
+        });
+        body.appendChild(raw);
+
+        var act = document.createElement("div");
+        act.className = "actions";
+        if (r.kind === "ir") {
+          var b1 = document.createElement("button");
+          b1.className = "send small"; b1.textContent = "Nochmal senden";
+          b1.addEventListener("click", function () { post("/api/send/replay?no=" + r.no); });
+          act.appendChild(b1);
+        }
+        var b2 = document.createElement("button");
+        b2.className = "small"; b2.textContent = "Pulse kopieren";
+        b2.addEventListener("click", function () { copy(j.pulses.join(" ")); });
+        act.appendChild(b2);
+        var b3 = document.createElement("button");
+        b3.className = "small"; b3.textContent = "Ins Eingabefeld";
+        b3.addEventListener("click", function () {
+          $("raw").value = j.pulses.join(" ");
+          $("rawbox").open = true;
+          if (r.khz) setKhz(r.khz);
+          $("raw").focus();
+        });
+        act.appendChild(b3);
+        body.appendChild(act);
+      };
+      if (r.kind === "ir") compareNote(r, function (n, d) { finish(d); });
+      else finish(null);
+    }).catch(function () { body.textContent = "Pulse konnten nicht geladen werden"; });
+  }
+
+  function setKhz(k) {
+    var sel = $("khz"), best = null;
+    Array.prototype.forEach.call(sel.options, function (o) {
+      if (best === null || Math.abs(+o.value - k) < Math.abs(+best.value - k)) best = o;
+    });
+    if (best) sel.value = best.value;
+  }
+
+  function copy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast("Pulse kopiert"); }, function () { fallbackCopy(text); });
+    } else fallbackCopy(text);
+  }
+  function fallbackCopy(text) {
+    $("raw").value = text; $("rawbox").open = true; $("raw").select();
+    toast("Pulse stehen markiert im Eingabefeld – jetzt kopieren");
+  }
+
+  // ---------- Signalbild
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function drawWave(lanes) {
+    var US_PER_PX = 10, LANE = 34, TOP = 6, LEFT = 74, AXIS = 22;
+    var total = 0;
+    lanes.forEach(function (l) { var s = 0; l.p.forEach(function (v) { s += v; }); total = Math.max(total, s); });
+    var w = Math.max(320, LEFT + Math.ceil(total / US_PER_PX) + 16);
+    var h = TOP + lanes.length * LANE + AXIS;
+    var svg = svgEl("svg", { width: w, height: h, viewBox: "0 0 " + w + " " + h, role: "img",
+      "aria-label": "Signalbild: " + lanes.map(function (l) { return l.label + " " + l.p.length + " Pulse"; }).join(", ") });
+    var cs = getComputedStyle(document.documentElement);
+    var col = function (n) { return cs.getPropertyValue(n).trim(); };
+
+    // Zeitachse: Striche je Millisekunde, Zahlen je 5 ms
+    var axisY = TOP + lanes.length * LANE + 4;
+    for (var ms = 0; ms * 1000 <= total; ms++) {
+      var x = LEFT + ms * 1000 / US_PER_PX;
+      svg.appendChild(svgEl("line", { x1: x, x2: x, y1: TOP, y2: axisY, stroke: col("--rule"), "stroke-width": ms % 5 ? 0.5 : 1 }));
+      if (ms % 5 === 0) {
+        var t = svgEl("text", { x: x + 2, y: axisY + 13, fill: col("--muted"), "font-size": 11, "font-family": "ui-monospace, Menlo, monospace" });
+        t.textContent = ms + " ms";
+        svg.appendChild(t);
+      }
+    }
+
+    lanes.forEach(function (l, li) {
+      var y0 = TOP + li * LANE, hi = y0 + 6, lo = y0 + LANE - 8;
+      var lab = svgEl("text", { x: 6, y: y0 + LANE / 2 + 4, fill: col("--muted"), "font-size": 12, "font-family": "ui-monospace, Menlo, monospace" });
+      lab.textContent = l.label;
+      svg.appendChild(lab);
+      var dset = {}; (l.diff || []).forEach(function (i) { dset[i] = 1; });
+      var x = LEFT, d = "M " + x + " " + lo;
+      l.p.forEach(function (v, i) {
+        var nx = x + v / US_PER_PX;
+        if (i % 2 === 0) {
+          svg.appendChild(svgEl("rect", { x: x, y: hi, width: Math.max(1, nx - x), height: lo - hi,
+            fill: dset[i] ? col("--diff") : col("--ir"), opacity: dset[i] ? 0.9 : 0.75 }));
+        } else if (dset[i]) {
+          svg.appendChild(svgEl("rect", { x: x, y: lo - 3, width: Math.max(1, nx - x), height: 6, fill: col("--diff") }));
+        }
+        x = nx;
+      });
+      svg.appendChild(svgEl("line", { x1: LEFT, x2: x, y1: lo, y2: lo, stroke: col("--muted"), "stroke-width": 1 }));
+    });
+    return svg;
+  }
+
+  // ---------- Letztes Ergebnis
+  function renderLast() {
+    var r = S.records[S.records.length - 1];
+    var box = $("last");
+    if (!r) return;
+    box.className = "result" + (r.kind === "echo" ? (r.ok ? " ok" : " bad") : "");
+    box.textContent = "";
+    var big = document.createElement("div"); big.className = "big";
+    var small = document.createElement("div"); small.className = "small";
+    if (r.kind === "echo") {
+      big.textContent = (r.ok ? "Eigentest OK" : "Eigentest fehlgeschlagen") + " · " + r.src;
+      small.textContent = r.text;
+    } else {
+      big.textContent = "#" + r.no + " · " + keyTitle(r.key);
+      small.textContent = fmtKhz(r.khz) + " · " + r.n + " Pulse · " + fmtTime(r.t);
+    }
+    box.appendChild(big); box.appendChild(small);
+    if (r.no > S.seenLatest && S.seenLatest) {
+      if (r.kind === "echo") toast(r.ok ? "Eigentest OK" : "Eigentest fehlgeschlagen", !r.ok);
+      else toast("Aufnahme #" + r.no + " für " + keyTitle(r.key));
+    }
+    S.seenLatest = r.no;
+  }
+
+
+  // ---------- Nachgebaute Fernbedienung
+  // n = Tastennummer auf dem Board (fest), fn = hat eine Funktion an der Haube
+  var ICON = {
+    power: '<path d="M12 4v7"/><path d="M7 7.5a7 7 0 1 0 10 0"/>',
+    up: '<path d="M6 15l6-6 6 6"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
+    op: '<path d="M5 8h14"/><path d="M12 11v6M8 11l-2.5 3.5M16 11l2.5 3.5"/>',
+    room: '<path d="M5 16h14"/><path d="M12 13V7M8 13l-2.5-3.5M16 13l2.5-3.5"/>',
+    timer: '<circle cx="12" cy="12" r="7"/><path d="M12 12V5a7 7 0 0 1 7 7z" fill="currentColor"/>',
+    ret: '<path d="M8 19V9h9"/><path d="M14 6l3 3-3 3"/>',
+    cycle: '<path d="M17.5 9A6.5 6.5 0 0 0 6 8.5"/><path d="M6 5v3.5h3.5"/><path d="M6.5 15A6.5 6.5 0 0 0 18 15.5"/><path d="M18 19v-3.5h-3.5"/>',
+    play: '<path d="M8 6v12"/><path d="M11.5 6.5l6.5 5.5-6.5 5.5z"/>',
+    blank: ''
+  };
+  var KEYS = [
+    { n: 1, id: "power", name: "An/Aus", fn: true, at: "dial", icon: "power" },
+    { n: 2, id: "s1", name: "Stufe 1", fn: true, at: "dial", text: "1" },
+    { n: 3, id: "s2", name: "Stufe 2", fn: true, at: "dial", text: "2" },
+    { n: 4, id: "s3", name: "Stufe 3", fn: true, at: "dial", text: "3" },
+    { n: 5, id: "s4", name: "Stufe 4", fn: true, at: "dial", text: "4" },
+    { n: 6, id: "up", name: "Hoch", fn: true, at: "arrows", icon: "up" },
+    { n: 7, id: "down", name: "Runter", fn: true, at: "arrows", icon: "down" },
+    { n: 8, id: "op", name: "OP Licht", fn: true, at: "pad", icon: "op" },
+    { n: 9, id: "room", name: "Raum Licht", fn: true, at: "pad", icon: "room" },
+    { n: 10, id: "timer", name: "Uhr", fn: false, at: "pad", icon: "timer" },
+    { n: 11, id: "ret", name: "Pfeil", fn: false, at: "pad", icon: "ret" },
+    { n: 12, id: "blankl", name: "Leer links", fn: false, at: "pad", icon: "blank" },
+    { n: 13, id: "cycle", name: "Kreis", fn: false, at: "pad", icon: "cycle" },
+    { n: 14, id: "play", name: "Play", fn: false, at: "pad", icon: "play" },
+    { n: 15, id: "blankr", name: "Leer rechts", fn: false, at: "pad", icon: "blank" }
+  ];
+  var MODE_KEY = "irlab-remote-mode";
+  var mode = "learn";
+  try { if (localStorage.getItem(MODE_KEY) === "send") mode = "send"; } catch (e) {}
+  S.codes = {}; S.learn = 0;
+
+  function keyByN(n) { for (var i = 0; i < KEYS.length; i++) if (KEYS[i].n === n) return KEYS[i]; return null; }
+  function codeState(c) {
+    if (!c || !c.n) return "none";
+    if (c.n === 1) return "one";
+    return c.agree === c.n ? "ok" : "diff";
+  }
+
+  function buildRemote() {
+    KEYS.forEach(function (k) {
+      var b = document.createElement("button");
+      b.className = "rk k-" + k.id + (k.fn ? "" : " nofn");
+      b.id = "rk-" + k.n;
+      b.innerHTML = (k.text ? k.text : '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[k.icon] + '</svg>') + "<i></i>";
+      b.addEventListener("click", function () { remoteClick(k); });
+      $(k.at).appendChild(b);
+    });
+    document.querySelectorAll(".modes button").forEach(function (b) {
+      b.addEventListener("click", function () { setMode(b.getAttribute("data-m")); });
+    });
+    renderRemote();
+  }
+
+  function setMode(m) {
+    mode = m;
+    try { localStorage.setItem(MODE_KEY, m); } catch (e) {}
+    if (m === "send" && S.learn) post("/api/learn?n=0");
+    renderRemote();
+  }
+
+  // Hoch/Runter bewegen den Deckenlift: auf Wunsch erst nachfragen
+  var LIFT = { 6: "hochfahren", 7: "herunterfahren" };
+  var CONFIRM_KEY = "irlab-confirm-lift";
+  $("liftconfirm").checked = load(CONFIRM_KEY) !== "off";
+  $("liftconfirm").addEventListener("change", function () {
+    store(CONFIRM_KEY, $("liftconfirm").checked ? null : "off");
+    if (!$("liftconfirm").checked) $("liftask").hidden = true;
+  });
+  var liftPending = null;
+  function sendCode(k) {
+    if (LIFT[k.n] && $("liftconfirm").checked) {
+      liftPending = k;
+      $("liftask-text").textContent = "Haube wirklich " + LIFT[k.n] + "? Ist der Weg frei?";
+      $("liftask").hidden = false;
+      $("liftask-yes").focus();
+      return;
+    }
+    post("/api/code/send?n=" + k.n).then(function (j) { if (j && j.ok) toast(k.name + " gesendet"); });
+  }
+  $("liftask-yes").addEventListener("click", function () {
+    var k = liftPending; liftPending = null; $("liftask").hidden = true;
+    if (k) post("/api/code/send?n=" + k.n).then(function (j) { if (j && j.ok) toast(k.name + " gesendet"); });
+  });
+  $("liftask-no").addEventListener("click", function () { liftPending = null; $("liftask").hidden = true; });
+
+  function remoteClick(k) {
+    if (mode === "learn") {
+      post("/api/learn?n=" + k.n, k.name);
+    } else {
+      var c = S.codes[String(k.n)];
+      if (!c || !c.n) { toast(k.name + " ist noch nicht gelernt", true); return; }
+      sendCode(k);
+    }
+  }
+
+  function renderRemote() {
+    document.querySelectorAll(".modes button").forEach(function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-m") === mode ? "true" : "false");
+    });
+    $("remote").className = "remote" + (mode === "send" ? " send" : "");
+    KEYS.forEach(function (k) {
+      var b = $("rk-" + k.n), c = S.codes[String(k.n)], st = codeState(c);
+      if (!b) return;
+      b.className = "rk k-" + k.id + (k.fn ? "" : " nofn") + " st-" + st + (st !== "none" ? " has" : "") +
+        (mode === "learn" && S.learn === k.n ? " sel" : "");
+      var what = st === "none" ? "nicht gelernt" : st === "one" ? "1× gelernt" :
+        st === "ok" ? c.n + "× gelernt, alle gleich" : c.agree + " von " + c.n + " gleich";
+      b.title = k.name + (k.fn ? "" : " (ohne Funktion)") + " – " + what;
+      b.setAttribute("aria-label", b.title);
+    });
+    renderRemoteInfo();
+  }
+
+  function renderRemoteInfo() {
+    var box = $("rinfo");
+    box.innerHTML = "";
+    var k = keyByN(S.learn);
+    if (mode === "send") {
+      box.innerHTML = "<div>Tippe eine Taste – der gelernte Code geht über die IR-LED an die Haube. Blasse Tasten sind noch nicht gelernt.</div>";
+      return;
+    }
+    if (!k) {
+      box.innerHTML = "<div>Tippe die Taste an, die du lernen willst. Dann dieselbe Taste auf der echten Fernbedienung 2–3× drücken (20–30 cm Abstand, gerade auf die Empfänger).</div>";
+      return;
+    }
+    var c = S.codes[String(k.n)], st = codeState(c);
+    var head = document.createElement("div");
+    head.innerHTML = "Lerne: <b></b>" + (k.fn ? "" : " (ohne Funktion)");
+    head.querySelector("b").textContent = k.name;
+    box.appendChild(head);
+    var line = document.createElement("div");
+    line.textContent = st === "none" ? "Jetzt die echte Taste 2–3× drücken …"
+      : st === "one" ? "1 Druck gelernt – noch 1–2× drücken zum Vergleich."
+      : st === "ok" ? "✓ " + c.n + " Drücke, alle gleich (" + c.len + " Pulse). Fertig – nächste Taste antippen."
+      : "⚠ Nur " + c.agree + " von " + c.n + " Drücken gleich. Weiter drücken – gesendet wird der häufigste Code.";
+    box.appendChild(line);
+    if (st !== "none") {
+      var row = document.createElement("div");
+      row.className = "row";
+      var del = document.createElement("button");
+      del.className = "small"; del.textContent = "Code löschen und neu lernen";
+      del.addEventListener("click", function () { post("/api/code/forget?n=" + k.n); });
+      var tst = document.createElement("button");
+      tst.className = "small send"; tst.textContent = "Jetzt senden";
+      tst.addEventListener("click", function () { sendCode(k); });
+      row.appendChild(tst); row.appendChild(del);
+      box.appendChild(row);
+    }
+  }
+
+  // ---------- Bedienung
+  // ungespeicherten Namen erst sichern, dann weiterschalten
+  $("btn-next").addEventListener("click", function () { saveName().then(function () { post("/api/key?op=next"); }); });
+  $("btn-prev").addEventListener("click", function () { saveName().then(function () { post("/api/key?op=prev"); }); });
+  $("btn-test").addEventListener("click", function () { post("/api/send/test?khz=" + $("khz").value); });
+  $("btn-raw").addEventListener("click", function () {
+    var v = $("raw").value.trim();
+    if (!v) { toast("Erst Pulse eingeben", true); $("raw").focus(); return; }
+    post("/api/send/raw?khz=" + $("khz").value, v);
+  });
+  $("keyname").addEventListener("input", showNameState);
+  $("keyname").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); saveName(); }
+  });
+  $("keyname").addEventListener("blur", function () { saveName(); });
+
+  // Neu anfangen: Aufnahmen und Namen löschen, zurück auf Taste 1 (mit Rückfrage)
+  function restartIdle() {
+    $("restartbox").innerHTML = '<button id="btn-restart">Neu anfangen</button>';
+    $("btn-restart").addEventListener("click", restartAsk);
+  }
+  function restartAsk() {
+    $("restartbox").innerHTML = '<span class="confirm">Alles löschen? ' +
+      '<button class="small send" id="restart-yes">Ja</button><button class="small" id="restart-no">Nein</button></span>';
+    $("restart-yes").addEventListener("click", function () {
+      $("keyname").value = "";
+      post("/api/key?op=restart"); restartIdle();
+    });
+    $("restart-no").addEventListener("click", restartIdle);
+  }
+  restartIdle();
+
+  document.querySelectorAll(".filters button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      S.filter = b.getAttribute("data-f");
+      document.querySelectorAll(".filters button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      renderRecords();
+    });
+  });
+
+  // Liste leeren mit Rückfrage auf der Seite
+  function clearIdle() {
+    var box = $("clearbox");
+    box.innerHTML = '<button class="small ghost" id="btn-clear">Liste leeren</button>';
+    $("btn-clear").addEventListener("click", clearAsk);
+  }
+  function clearAsk() {
+    var box = $("clearbox");
+    box.innerHTML = '<span class="confirm">Alle Aufnahmen im Board löschen? ' +
+      '<button class="small send" id="clear-yes">Löschen</button><button class="small" id="clear-no">Abbrechen</button></span>';
+    $("clear-yes").addEventListener("click", function () { post("/api/clear"); clearIdle(); });
+    $("clear-no").addEventListener("click", clearIdle);
+  }
+  clearIdle();
+
+  $("pinform").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = $("pin").value.trim();
+    if (!v) return;
+    store(PIN_KEY, v);
+    $("pinbox").hidden = true;
+    poll();
+  });
+
+  buildRemote();
+  renderRecords();
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>

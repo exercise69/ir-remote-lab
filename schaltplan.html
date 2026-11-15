@@ -1,0 +1,1888 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IR-Steckplan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: eine Spalte wie ein Laborblatt – Schaltplan oben als Hauptsache, darunter Pinbelegung, Verdrahtungstabelle, Steckreihenfolge */
+:root {
+  --bg: #eef2f0;
+  --panel: #ffffff;
+  --fg: #18211d;
+  --muted: #65716b;
+  --rule: #cbd3cf;
+  --accent: #b3203a;      /* neue Bauteile / neue Leitungen */
+  --accent-soft: #f6dfe3;
+  --warn: #8a5a00;
+  --warn-soft: #fbefd2;
+  --ok: #1f7a4d;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --panel: #19201d; --fg: #e3eae6; --muted: #929e98; --rule: #2e3833;
+    --accent: #ff6f86; --accent-soft: #3a1d24; --warn: #f1c25b; --warn-soft: #3a2f14; --ok: #5fd39a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --panel: #19201d; --fg: #e3eae6; --muted: #929e98; --rule: #2e3833;
+  --accent: #ff6f86; --accent-soft: #3a1d24; --warn: #f1c25b; --warn-soft: #3a2f14; --ok: #5fd39a;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg); color: var(--fg);
+  font-family: var(--body); font-size: 16px; line-height: 1.55;
+}
+.wrap {
+  max-width: 960px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+  display: grid; gap: 28px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-size: clamp(32px, 6vw, 46px); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h2 { font-family: var(--display); font-size: 24px; margin: 0; letter-spacing: .02em; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.lead { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: .9em; }
+
+section { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; }
+.scroll { overflow-x: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 26px; height: 0; border-top: 2.5px solid var(--fg); }
+.sw.new { border-color: var(--accent); }
+.sw.old { border-top: 2px dashed var(--muted); }
+
+.alert {
+  background: var(--warn-soft); color: var(--fg);
+  border-left: 4px solid var(--warn); padding: 12px 16px; border-radius: 4px;
+}
+.alert strong { color: var(--warn); }
+
+/* Schaltplan-SVG */
+svg { display: block; }
+.schem { min-width: 760px; width: 100%; height: auto; }
+.w { stroke: var(--fg); stroke-width: 2; fill: none; }
+.wn { stroke: var(--accent); stroke-width: 2.5; fill: none; }
+.wo { stroke: var(--muted); stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+.part { fill: var(--panel); stroke: var(--accent); stroke-width: 2.2; }
+.board { fill: var(--panel); stroke: var(--fg); stroke-width: 2; }
+.dot { fill: var(--fg); }
+.dotn { fill: var(--accent); }
+.t { fill: var(--fg); font-family: var(--body); font-size: 14px; }
+.tb { fill: var(--fg); font-family: var(--display); font-size: 18px; font-weight: 700; letter-spacing: .03em; }
+.tm { fill: var(--muted); font-family: var(--body); font-size: 13px; }
+.tp { fill: var(--fg); font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.tpo { fill: var(--muted); font-family: var(--mono); font-size: 13px; }
+.ta { fill: var(--accent); font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.tv { fill: var(--accent); font-family: var(--display); font-size: 16px; font-weight: 700; }
+
+.two { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 680px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.pinout { padding: 16px; display: grid; justify-items: center; gap: 8px; }
+.pinout svg { width: 100%; max-width: 220px; height: auto; }
+.pinout .cap { font-size: 13px; color: var(--muted); text-align: center; }
+
+table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 400; }
+tr:last-child td { border-bottom: 0; }
+td.pin { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+td.new { color: var(--accent); }
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 3px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.tag.old { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: s; }
+ol.steps li { counter-increment: s; }
+ol.steps label {
+  display: grid; grid-template-columns: 22px 30px minmax(0, 1fr); gap: 10px; align-items: start;
+  padding: 10px 14px; cursor: pointer; border-radius: 4px;
+}
+ol.steps label:hover { background: var(--bg); }
+ol.steps label::before {
+  content: counter(s); grid-column: 2; grid-row: 1;
+  font-family: var(--mono); font-size: 13px; color: var(--muted); padding-top: 2px;
+}
+ol.steps input { grid-column: 1; grid-row: 1; margin: 4px 0 0; width: 18px; height: 18px; accent-color: var(--ok); }
+ol.steps .txt { grid-column: 3; grid-row: 1; min-width: 0; }
+ol.steps input:checked ~ .txt { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
+ol.steps input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.steps-wrap { padding: 6px; }
+.progress { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+ul.notes { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 72ch; }
+
+/* Lötplan */
+:root { --pcb: #efe4c8; --pcb-hole: #b9a77c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --pcb: #2c2717; --pcb-hole: #6d6243; } }
+:root[data-theme="dark"] { --pcb: #2c2717; --pcb-hole: #6d6243; }
+.pcbviews { display: grid; gap: 16px; }
+.pcbviews figure { margin: 0; padding: 12px; display: grid; gap: 8px; }
+.pcbviews figcaption { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.pcbv { min-width: 560px; width: 100%; max-width: 720px; height: auto; margin: 0 auto; }
+.pcb { fill: var(--pcb); stroke: var(--pcb-hole); stroke-width: 1.5; }
+.hole { fill: var(--pcb-hole); }
+.tru { stroke: var(--fg); stroke-opacity: .22; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.trs { stroke: var(--fg); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+.pad { fill: var(--pcb); stroke: var(--fg); stroke-width: 2.5; }
+.jmp { stroke: var(--fg); stroke-width: 3; fill: none; }
+.jmpd, .legd { fill: var(--fg); }
+.leg { stroke: var(--accent); stroke-width: 2; fill: none; }
+.body { fill: var(--panel); stroke: var(--accent); stroke-width: 2.2; }
+.stripe { fill: var(--accent); fill-opacity: .35; }
+.flat { stroke: var(--accent); stroke-width: 3; }
+.hdr { fill: var(--fg); fill-opacity: .85; }
+.hdrp { fill: #d4af37; }
+.lb, .lbn, .lbv, .lbp, .lbs, .lbh { paint-order: stroke; stroke: var(--pcb); stroke-width: 3px; stroke-linejoin: round; }
+.lbn { fill: var(--fg); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.lbv { fill: var(--accent); font-family: var(--mono); font-size: 11px; font-weight: 600; }
+.lbp { fill: var(--muted); font-family: var(--mono); font-size: 9.5px; }
+.lbs { fill: var(--muted); font-family: var(--body); font-size: 11px; }
+.lbh { fill: var(--fg); font-family: var(--mono); font-size: 12px; font-weight: 600; stroke: var(--panel); }
+.sw.pcbtr { border-top: 6px solid var(--fg); }
+.sw.pcbjmp { border-top: 3px solid var(--fg); width: 18px; }
+.jmpb { stroke: var(--fg); stroke-width: 2; stroke-dasharray: 4 4; fill: none; }
+.wingpcb { fill: #1d3d8f; fill-opacity: .14; stroke: #1d3d8f; stroke-opacity: .5; stroke-width: 1.5; }
+.mhole { fill: var(--panel); stroke: var(--pcb-hole); stroke-width: 2; }
+.strip { fill: var(--pcb-hole); fill-opacity: .55; }
+.lbu { fill: var(--accent); font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.lbq { fill: var(--muted); font-family: var(--mono); font-size: 10px; }
+.lbn2 { fill: var(--fg); font-family: var(--mono); font-size: 10px; font-weight: 600; }
+.wingv { min-width: 640px; max-width: 760px; }
+footer { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">IR-Labor · Schritt 2 + 3 · QT Py ESP32-S3</div>
+  <h1>IR-Steckplan</h1>
+  <p class="lead">Zum vorhandenen Aufbau kommen zwei IR-Empfänger und ein IR-Sender dazu. Der TSMP98000 misst die Trägerfrequenz der Fernbedienung, der TSOP34836 zeichnet den Code auf, und die IR-LED sendet Codes wieder aus. Weil Sender und Empfänger nebeneinander stecken, prüft sich der Aufbau selbst. LED, Taster und SD-Karte bleiben, wie sie sind.</p>
+</header>
+
+<div class="alert"><strong>Empfänger an 3V, Sender-LED an 5V.</strong> Die Ausgänge der Empfänger gehen direkt auf die Pins TX und RX, und die vertragen höchstens 3,3 V. Nur die IR-LED mit ihren 30 Ω (20 Ω + 10 Ω) hängt an 5V, und auch das nur über den Transistor. Prüf vorher mit dem Multimeter, welche Schiene auf dem Breadboard an welchem Pin hängt.</div>
+
+<section>
+  <h2>Schaltplan</h2>
+  <div class="legend">
+    <span><i class="sw new"></i>neu stecken</span>
+    <span><i class="sw"></i>Versorgung</span>
+    <span><i class="sw old"></i>schon vorhanden, nicht anfassen</span>
+  </div>
+  <div class="panel scroll">
+    <svg class="schem" viewBox="0 0 900 830" role="img" aria-labelledby="schem-title">
+      <title id="schem-title">Schaltplan: QT Py ESP32-S3 mit TSMP98000 an TX und TSOP34836 an RX, gemeinsame gefilterte Versorgung aus 3V; IR-LED TSAL6200 mit 30 Ohm (20 + 10 in Reihe) an 5V, geschaltet von einem 2N2222A, dessen Basis über 220 Ohm an A3 hängt</title>
+      <defs>
+        <g id="gnd">
+          <line x1="0" y1="0" x2="0" y2="10" class="w"/>
+          <line x1="-12" y1="10" x2="12" y2="10" class="w"/>
+          <line x1="-7" y1="15" x2="7" y2="15" class="w"/>
+          <line x1="-2.5" y1="20" x2="2.5" y2="20" class="w"/>
+        </g>
+      </defs>
+
+      <!-- QT Py -->
+      <rect x="40" y="70" width="200" height="700" rx="10" class="board"/>
+      <text x="60" y="100" class="tb">QT Py ESP32-S3</text>
+      <text x="60" y="120" class="tm">Pins wie aufgedruckt</text>
+
+      <!-- Pinbeschriftungen im Board -->
+      <text x="226" y="155" text-anchor="end" class="tp">3V</text>
+      <text x="226" y="205" text-anchor="end" class="tp">GND</text>
+      <text x="226" y="255" text-anchor="end" class="tp">TX</text>
+      <text x="226" y="355" text-anchor="end" class="tp">RX</text>
+      <text x="226" y="405" text-anchor="end" class="tpo">A0</text>
+      <text x="226" y="435" text-anchor="end" class="tpo">A1</text>
+      <text x="226" y="465" text-anchor="end" class="tpo">A2</text>
+      <text x="226" y="495" text-anchor="end" class="tpo">SCK MO MI</text>
+      <text x="226" y="535" text-anchor="end" class="tp">5V</text>
+      <text x="226" y="705" text-anchor="end" class="tp">A3</text>
+
+      <!-- 3V-Leitung mit 100 Ω -->
+      <line x1="240" y1="150" x2="300" y2="150" class="w"/>
+      <rect x="300" y="140" width="56" height="20" class="part"/>
+      <text x="328" y="130" text-anchor="middle" class="tv">100 Ω</text>
+      <text x="328" y="180" text-anchor="middle" class="ta">R1</text>
+      <line x1="356" y1="150" x2="760" y2="150" class="w"/>
+      <text x="560" y="140" text-anchor="middle" class="tm">VS gefiltert</text>
+
+      <!-- 100 nF nach GND -->
+      <circle cx="400" cy="150" r="4" class="dot"/>
+      <line x1="400" y1="150" x2="400" y2="186" class="w"/>
+      <line x1="384" y1="186" x2="416" y2="186" class="wn"/>
+      <line x1="384" y1="194" x2="416" y2="194" class="wn"/>
+      <line x1="400" y1="194" x2="400" y2="214" class="w"/>
+      <use href="#gnd" x="400" y="214"/>
+      <text x="424" y="196" class="tv">100 nF</text>
+      <text x="424" y="214" class="ta">C1</text>
+
+      <!-- GND des Boards -->
+      <line x1="240" y1="200" x2="270" y2="200" class="w"/>
+      <use href="#gnd" x="270" y="200"/>
+
+      <!-- 4,7 kΩ Pull-up -->
+      <circle cx="510" cy="150" r="4" class="dot"/>
+      <line x1="510" y1="150" x2="510" y2="174" class="w"/>
+      <rect x="500" y="174" width="20" height="52" class="part"/>
+      <text x="528" y="196" class="tv">4,7 kΩ</text>
+      <text x="528" y="214" class="ta">R2</text>
+      <line x1="510" y1="226" x2="510" y2="250" class="wn"/>
+
+      <!-- TX -> TSMP OUT -->
+      <line x1="240" y1="250" x2="580" y2="250" class="wn"/>
+      <circle cx="510" cy="250" r="4" class="dotn"/>
+
+      <!-- TSMP98000 -->
+      <circle cx="630" cy="150" r="4" class="dot"/>
+      <line x1="630" y1="150" x2="630" y2="220" class="w"/>
+      <rect x="580" y="220" width="100" height="70" rx="6" class="part"/>
+      <path d="M 610 220 A 20 20 0 0 1 650 220" class="part"/>
+      <text x="630" y="252" text-anchor="middle" class="tb" style="font-size:15px">TSMP98000</text>
+      <text x="630" y="272" text-anchor="middle" class="tm">Frequenz</text>
+      <text x="588" y="244" class="ta" style="font-size:11px">1</text>
+      <text x="636" y="236" class="ta" style="font-size:11px">3</text>
+      <text x="636" y="286" class="ta" style="font-size:11px">2</text>
+      <line x1="630" y1="290" x2="630" y2="306" class="w"/>
+      <use href="#gnd" x="630" y="306"/>
+      <text x="638" y="190" class="tm">VS</text>
+      <text x="616" y="322" text-anchor="end" class="tm">GND</text>
+      <text x="572" y="242" text-anchor="end" class="ta">OUT</text>
+
+      <!-- RX -> TSOP OUT -->
+      <line x1="240" y1="350" x2="710" y2="350" class="wn"/>
+
+      <!-- TSOP34836 -->
+      <line x1="760" y1="150" x2="760" y2="300" class="w"/>
+      <rect x="710" y="300" width="100" height="70" rx="6" class="part"/>
+      <path d="M 740 300 A 20 20 0 0 1 780 300" class="part"/>
+      <text x="760" y="332" text-anchor="middle" class="tb" style="font-size:15px">TSOP34836</text>
+      <text x="768" y="352" text-anchor="middle" class="tm">Code, 36 kHz</text>
+      <text x="718" y="344" class="ta" style="font-size:11px">1</text>
+      <text x="766" y="316" class="ta" style="font-size:11px">3</text>
+      <text x="766" y="366" class="ta" style="font-size:11px">2</text>
+      <line x1="760" y1="370" x2="760" y2="386" class="w"/>
+      <use href="#gnd" x="760" y="386"/>
+      <text x="768" y="262" class="tm">VS</text>
+      <text x="774" y="398" class="tm">GND</text>
+      <text x="702" y="342" text-anchor="end" class="ta">OUT</text>
+
+      <!-- vorhanden -->
+      <line x1="240" y1="400" x2="300" y2="400" class="wo"/>
+      <text x="310" y="405" class="tm">LED mit Vorwiderstand nach GND (vorhanden)</text>
+      <line x1="240" y1="430" x2="300" y2="430" class="wo"/>
+      <text x="310" y="435" class="tm">SD-Karte CS (vorhanden)</text>
+      <line x1="240" y1="460" x2="300" y2="460" class="wo"/>
+      <text x="310" y="465" class="tm">Taster nach GND (vorhanden)</text>
+      <line x1="240" y1="490" x2="300" y2="490" class="wo"/>
+      <text x="310" y="495" class="tm">SD-Karte SPI (vorhanden)</text>
+
+      <!-- ===== Sender ===== -->
+      <!-- 5V-Leitung -->
+      <line x1="240" y1="530" x2="700" y2="530" class="w"/>
+      <line x1="700" y1="530" x2="700" y2="550" class="w"/>
+
+      <!-- C2 100 µF an 5V -->
+      <circle cx="600" cy="530" r="4" class="dot"/>
+      <line x1="600" y1="530" x2="600" y2="552" class="w"/>
+      <line x1="584" y1="552" x2="616" y2="552" class="wn"/>
+      <path d="M 584 564 Q 600 556 616 564" class="wn"/>
+      <line x1="600" y1="560" x2="600" y2="576" class="w"/>
+      <use href="#gnd" x="600" y="576"/>
+      <text x="576" y="550" text-anchor="end" class="ta">+</text>
+      <text x="622" y="562" class="tv">100 µF</text>
+      <text x="622" y="580" class="ta">C2</text>
+
+      <!-- R3 30 Ω (20 + 10 in Reihe) -->
+      <rect x="690" y="550" width="20" height="50" class="part"/>
+      <text x="720" y="572" class="tv">30 Ω</text>
+      <text x="720" y="590" class="ta">R3 = 20 Ω + 10 Ω</text>
+      <line x1="700" y1="600" x2="700" y2="615" class="w"/>
+
+      <!-- IR-LED -->
+      <polygon points="686,615 714,615 700,639" class="part"/>
+      <line x1="686" y1="639" x2="714" y2="639" class="wn"/>
+      <line x1="718" y1="624" x2="736" y2="614" class="wn"/>
+      <polyline points="729,613 736,614 733,621" class="wn"/>
+      <line x1="718" y1="634" x2="736" y2="624" class="wn"/>
+      <polyline points="729,623 736,624 733,631" class="wn"/>
+      <text x="746" y="626" class="tb" style="font-size:15px">TSAL6200</text>
+      <text x="746" y="644" class="tm">IR-LED, Anode oben</text>
+
+      <!-- Q1 2N2222A -->
+      <line x1="700" y1="639" x2="700" y2="682" class="w"/>
+      <circle cx="694" cy="700" r="26" class="part" style="fill:none"/>
+      <line x1="684" y1="686" x2="684" y2="714" class="wn" style="stroke-width:3.5"/>
+      <line x1="684" y1="692" x2="700" y2="682" class="wn"/>
+      <line x1="684" y1="708" x2="700" y2="718" class="wn"/>
+      <polygon points="700,718 690,717 695,709" class="dotn"/>
+      <line x1="700" y1="718" x2="700" y2="740" class="w"/>
+      <use href="#gnd" x="700" y="740"/>
+      <text x="730" y="696" class="tb" style="font-size:15px">Q1 2N2222A</text>
+      <text x="730" y="714" class="tm">Beine E · B · C</text>
+      <text x="730" y="731" class="tm">flache Seite vorn</text>
+      <!-- Anschlussbelegung am Symbol -->
+      <text x="708" y="666" class="ta">C</text>
+      <text x="656" y="693" class="ta">B</text>
+      <text x="708" y="738" class="ta">E</text>
+
+      <!-- A3 -> R4 -> Basis, R5 nach GND -->
+      <line x1="240" y1="700" x2="420" y2="700" class="wn"/>
+      <rect x="420" y="690" width="56" height="20" class="part"/>
+      <text x="448" y="680" text-anchor="middle" class="tv">220 Ω</text>
+      <text x="448" y="728" text-anchor="middle" class="ta">R4</text>
+      <line x1="476" y1="700" x2="684" y2="700" class="wn"/>
+      <circle cx="560" cy="700" r="4" class="dotn"/>
+      <line x1="560" y1="700" x2="560" y2="720" class="w"/>
+      <rect x="550" y="720" width="20" height="50" class="part"/>
+      <text x="578" y="742" class="tv">10 kΩ</text>
+      <text x="578" y="760" class="ta">R5</text>
+      <line x1="560" y1="770" x2="560" y2="785" class="w"/>
+      <use href="#gnd" x="560" y="785"/>
+    </svg>
+  </div>
+  <p class="lead">R1 und C1 filtern Störungen aus der Versorgung, beide Empfänger hängen dahinter. R2 empfiehlt das Datenblatt des TSMP98000 für saubere Flanken. Der TSOP hat seinen Pull-up schon eingebaut.</p>
+  <p class="lead">Beim Sender schaltet Q1 die IR-LED. R3 besteht aus 20 Ω und 10 Ω in Reihe, zusammen 30 Ω. Damit fließen an 5V etwa 105 mA, wenn die LED an ist. Dauerhaft darf die TSAL6200 100 mA und als Puls 200 mA. Beim Senden ist sie nur etwa ein Drittel der Zeit an, im Mittel also deutlich unter 100 mA. Zwei Widerstände teilen sich auch die Wärme, ein normaler ¼-W-Widerstand je Stück reicht. R4 begrenzt den Basisstrom auf gut 10 mA. R5 hält den Transistor sicher aus, solange A3 beim Start noch offen ist. C2 puffert die kurzen Stromspitzen; falls am Breadboard schon ein 100-µF-Elko zwischen 5V und GND steckt, reicht der.</p>
+</section>
+
+<section>
+  <h2>Pinbelegung der Empfänger</h2>
+  <div class="two">
+    <div class="panel pinout">
+      <svg viewBox="0 0 220 230" role="img" aria-labelledby="po-title">
+        <title id="po-title">Empfänger von vorne: Linse zu dir, Beine nach unten. Links Pin 1 OUT, Mitte Pin 2 GND, rechts Pin 3 VS.</title>
+        <rect x="45" y="20" width="130" height="100" rx="8" class="board"/>
+        <circle cx="110" cy="65" r="30" class="part"/>
+        <text x="110" y="70" text-anchor="middle" class="tm">Linse</text>
+        <line x1="75" y1="120" x2="75" y2="180" class="w" stroke-width="4"/>
+        <line x1="110" y1="120" x2="110" y2="180" class="w" stroke-width="4"/>
+        <line x1="145" y1="120" x2="145" y2="180" class="w" stroke-width="4"/>
+        <text x="75" y="200" text-anchor="middle" class="ta">1</text>
+        <text x="110" y="200" text-anchor="middle" class="tp">2</text>
+        <text x="145" y="200" text-anchor="middle" class="tp">3</text>
+        <text x="75" y="220" text-anchor="middle" class="ta">OUT</text>
+        <text x="110" y="220" text-anchor="middle" class="tp">GND</text>
+        <text x="145" y="220" text-anchor="middle" class="tp">VS</text>
+      </svg>
+      <div class="cap">Von vorne, Linse zu dir.<br>Gilt für TSMP98000, TSOP34836 und TSOP38238.</div>
+    </div>
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>Von</th><th>Nach</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="pin">3V</td><td>R1 100 Ω → Leitung „VS gefiltert“</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">VS gefiltert</td><td>C1 100 nF → GND, nah an den Empfängern</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">VS gefiltert</td><td>Pin 3 von TSMP98000 und TSOP34836</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">GND</td><td>Pin 2 von TSMP98000 und TSOP34836</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin new">TX</td><td>Pin 1 (OUT) TSMP98000, dazu R2 4,7 kΩ nach VS gefiltert</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin new">RX</td><td>Pin 1 (OUT) TSOP34836</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin new">A3</td><td>R4 220 Ω → Basis (B) Q1; R5 10 kΩ von Basis nach GND</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">GND</td><td>Emitter (E) Q1</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">5V</td><td>R3 (20 Ω + 10 Ω in Reihe) → Anode (langes Bein) TSAL6200; C2 100 µF nach GND</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">Kathode</td><td>kurzes Bein TSAL6200 → Kollektor (C) Q1</td><td><span class="tag">neu</span></td></tr>
+          <tr><td class="pin">A0 · A1 · A2 · SPI</td><td>LED, SD-Karte, Taster</td><td><span class="tag old">bleibt</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="lead">TX und RX liegen am QT Py an der Seite mit dem Reset-Knopf, gegenüber der USB-Buchse: TX in der Reihe A0…SCL, RX in der Reihe 5V…SCK. A3 sitzt in der Reihe A0…TX, 5V an der USB-Seite der anderen Reihe.</p>
+</section>
+
+<section>
+  <h2>Pinbelegung des Senders</h2>
+  <div class="two">
+    <div class="panel pinout">
+      <svg viewBox="0 0 220 230" role="img" aria-labelledby="q-title">
+        <title id="q-title">2N2222A im TO-92-Gehäuse von vorne: flache Seite zu dir, Beine nach unten. Links Emitter, Mitte Basis, rechts Kollektor.</title>
+        <path d="M 50 120 L 50 60 A 60 60 0 0 1 170 60 L 170 120 Z" class="board"/>
+        <text x="110" y="95" text-anchor="middle" class="tm">flache Seite</text>
+        <line x1="75" y1="120" x2="75" y2="180" class="w" stroke-width="4"/>
+        <line x1="110" y1="120" x2="110" y2="180" class="w" stroke-width="4"/>
+        <line x1="145" y1="120" x2="145" y2="180" class="w" stroke-width="4"/>
+        <text x="75" y="200" text-anchor="middle" class="tp">E</text>
+        <text x="110" y="200" text-anchor="middle" class="ta">B</text>
+        <text x="145" y="200" text-anchor="middle" class="tp">C</text>
+        <text x="75" y="220" text-anchor="middle" class="tm">GND</text>
+        <text x="110" y="220" text-anchor="middle" class="tm">220 Ω</text>
+        <text x="145" y="220" text-anchor="middle" class="tm">LED</text>
+      </svg>
+      <div class="cap">2N2222A, flache Seite zu dir.<br>Bitte mit dem Aufdruck auf deinem Exemplar gegenprüfen.</div>
+    </div>
+    <div class="panel pinout">
+      <svg viewBox="0 0 220 230" role="img" aria-labelledby="led-title">
+        <title id="led-title">IR-LED von der Seite: langes Bein ist die Anode und geht über 30 Ohm (20 + 10) an 5V, kurzes Bein an der abgeflachten Kante ist die Kathode und geht an den Kollektor.</title>
+        <path d="M 75 120 L 75 50 A 35 35 0 0 1 145 50 L 145 120 Z" class="part"/>
+        <rect x="65" y="112" width="90" height="12" rx="2" class="board"/>
+        <line x1="92" y1="124" x2="92" y2="200" class="w" stroke-width="4"/>
+        <line x1="128" y1="124" x2="128" y2="180" class="w" stroke-width="4"/>
+        <text x="92" y="218" text-anchor="middle" class="ta">+ lang</text>
+        <text x="138" y="198" text-anchor="start" class="tp">− kurz</text>
+        <text x="40" y="160" text-anchor="middle" class="tm">30 Ω</text>
+        <text x="40" y="176" text-anchor="middle" class="tm">→ 5V</text>
+        <text x="185" y="160" text-anchor="middle" class="tm">→ C</text>
+      </svg>
+      <div class="cap">TSAL6200 oder VSLY5940.<br>Die Kathode sitzt an der abgeflachten Kante.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Stecken, Schritt für Schritt</h2>
+  <div class="panel steps-wrap">
+    <ol class="steps" id="steps">
+      <li><label><input type="checkbox" id="s1"><span class="txt">USB abziehen.</span></label></li>
+      <li><label><input type="checkbox" id="s2"><span class="txt">Mit dem Multimeter nachsehen, welche Schiene am <b>3V</b>-Pin hängt. Nur diese benutzen.</span></label></li>
+      <li><label><input type="checkbox" id="s3"><span class="txt">TSMP98000 und TSOP34836 in die freie Fläche stecken, jedes Bein in eine eigene Spalte, Linse nach außen zur Tischkante. Etwas Abstand zur blauen LED lassen.</span></label></li>
+      <li><label><input type="checkbox" id="s4"><span class="txt">R1 (100 Ω, braun-schwarz-braun) von der 3V-Schiene zu einer freien Spalte. Das ist ab jetzt „VS gefiltert“.</span></label></li>
+      <li><label><input type="checkbox" id="s5"><span class="txt">C1 (100 nF, Aufdruck <span class="mono">104</span>) von „VS gefiltert“ nach GND, möglichst nah an den Empfängern.</span></label></li>
+      <li><label><input type="checkbox" id="s6"><span class="txt">Pin 3 (VS) beider Empfänger an „VS gefiltert“, Pin 2 (GND) beider Empfänger an GND.</span></label></li>
+      <li><label><input type="checkbox" id="s7"><span class="txt">TSMP98000 Pin 1 (OUT) → <b>TX</b>. R2 (4,7 kΩ, gelb-violett-rot) von diesem Pin 1 nach „VS gefiltert“.</span></label></li>
+      <li><label><input type="checkbox" id="s8"><span class="txt">TSOP34836 Pin 1 (OUT) → <b>RX</b>.</span></label></li>
+      <li><label><input type="checkbox" id="s11"><span class="txt">Q1 (2N2222A) stecken, flache Seite zu dir: E an GND. R4 (220 Ω, rot-rot-braun) von <b>A3</b> zur Basis, R5 (10 kΩ, braun-schwarz-orange) von der Basis nach GND.</span></label></li>
+      <li><label><input type="checkbox" id="s12"><span class="txt">TSAL6200: kurzes Bein an den Kollektor von Q1, langes Bein über R3 an <b>5V</b>: 20 Ω (rot-schwarz-schwarz) und 10 Ω (braun-schwarz-schwarz) hintereinander gesteckt. Die LED zeigt zu den Empfängern, aus 5 bis 20 cm Abstand.</span></label></li>
+      <li><label><input type="checkbox" id="s13"><span class="txt">C2 (100 µF) zwischen 5V und GND, Minus-Streifen an GND. Falls dort schon ein Elko steckt, überspringen.</span></label></li>
+      <li><label><input type="checkbox" id="s9"><span class="txt">Alles einmal gegen die Tabelle prüfen, vor allem: Empfänger nicht an 5V, OUT nicht mit VS vertauscht, LED richtig herum.</span></label></li>
+      <li><label><input type="checkbox" id="s10"><span class="txt">USB wieder anstecken. Die LED blitzt einmal, dann ist das Programm bereit.</span></label></li>
+    </ol>
+  </div>
+  <div class="progress" id="progress" aria-live="polite"></div>
+</section>
+
+<section>
+  <h2>Lötplan: IR-Modul auf Lochraster</h2>
+  <p class="lead">Empfänger, Sender und alle Widerstände kommen auf eine kleine Lochrasterplatine. Ein Breadboard braucht es dafür nicht mehr. Das Modul hängt über eine 6-polige Stiftleiste und sechs Dupont-Kabel am QT Py. LED, Taster und SD-Karte bleiben, wo sie sind. Gebraucht wird eine Punktraster-Platine mit 2,54 mm Raster und mindestens 17 × 13 Löchern (etwa 45 × 35 mm). Die Verbindungen entstehen auf der Unterseite aus Lötzinn oder abgeschnittenen Beinresten.</p>
+  <div class="legend">
+    <span><i class="sw pcbtr"></i>Lötbahn auf der Unterseite</span>
+    <span><i class="sw pcbjmp"></i>Drahtbrücke auf der Oberseite (unten gestrichelt)</span>
+    <span><i class="sw new"></i>Bauteil</span>
+  </div>
+  <div class="pcbviews">
+    <figure class="panel">
+      <figcaption>Bauteilseite, von oben</figcaption>
+      <div class="scroll">
+<svg class="pcbv" viewBox="0 0 706 606" role="img"><title>Lötplan Bauteilseite von oben: links TSOP34836 und TSMP98000, rechts IR-LED liegend nach vorn, darunter R3b, R3a, Q1, R4, R5; unten Stiftleiste RX 3V TX GND 5V A3</title>
+<rect x="22" y="92" width="612" height="468" rx="6" class="pcb"/>
+<circle cx="40" cy="110" r="3.2" class="hole"/>
+<circle cx="40" cy="146" r="3.2" class="hole"/>
+<circle cx="40" cy="182" r="3.2" class="hole"/>
+<circle cx="40" cy="218" r="3.2" class="hole"/>
+<circle cx="40" cy="254" r="3.2" class="hole"/>
+<circle cx="40" cy="290" r="3.2" class="hole"/>
+<circle cx="40" cy="326" r="3.2" class="hole"/>
+<circle cx="40" cy="362" r="3.2" class="hole"/>
+<circle cx="40" cy="398" r="3.2" class="hole"/>
+<circle cx="40" cy="434" r="3.2" class="hole"/>
+<circle cx="40" cy="470" r="3.2" class="hole"/>
+<circle cx="40" cy="506" r="3.2" class="hole"/>
+<circle cx="40" cy="542" r="3.2" class="hole"/>
+<circle cx="76" cy="110" r="3.2" class="hole"/>
+<circle cx="76" cy="146" r="3.2" class="hole"/>
+<circle cx="76" cy="182" r="3.2" class="hole"/>
+<circle cx="76" cy="218" r="3.2" class="hole"/>
+<circle cx="76" cy="254" r="3.2" class="hole"/>
+<circle cx="76" cy="290" r="3.2" class="hole"/>
+<circle cx="76" cy="326" r="3.2" class="hole"/>
+<circle cx="76" cy="362" r="3.2" class="hole"/>
+<circle cx="76" cy="398" r="3.2" class="hole"/>
+<circle cx="76" cy="434" r="3.2" class="hole"/>
+<circle cx="76" cy="470" r="3.2" class="hole"/>
+<circle cx="76" cy="506" r="3.2" class="hole"/>
+<circle cx="76" cy="542" r="3.2" class="hole"/>
+<circle cx="112" cy="110" r="3.2" class="hole"/>
+<circle cx="112" cy="146" r="3.2" class="hole"/>
+<circle cx="112" cy="182" r="3.2" class="hole"/>
+<circle cx="112" cy="218" r="3.2" class="hole"/>
+<circle cx="112" cy="254" r="3.2" class="hole"/>
+<circle cx="112" cy="290" r="3.2" class="hole"/>
+<circle cx="112" cy="326" r="3.2" class="hole"/>
+<circle cx="112" cy="362" r="3.2" class="hole"/>
+<circle cx="112" cy="398" r="3.2" class="hole"/>
+<circle cx="112" cy="434" r="3.2" class="hole"/>
+<circle cx="112" cy="470" r="3.2" class="hole"/>
+<circle cx="112" cy="506" r="3.2" class="hole"/>
+<circle cx="112" cy="542" r="3.2" class="hole"/>
+<circle cx="148" cy="110" r="3.2" class="hole"/>
+<circle cx="148" cy="146" r="3.2" class="hole"/>
+<circle cx="148" cy="182" r="3.2" class="hole"/>
+<circle cx="148" cy="218" r="3.2" class="hole"/>
+<circle cx="148" cy="254" r="3.2" class="hole"/>
+<circle cx="148" cy="290" r="3.2" class="hole"/>
+<circle cx="148" cy="326" r="3.2" class="hole"/>
+<circle cx="148" cy="362" r="3.2" class="hole"/>
+<circle cx="148" cy="398" r="3.2" class="hole"/>
+<circle cx="148" cy="434" r="3.2" class="hole"/>
+<circle cx="148" cy="470" r="3.2" class="hole"/>
+<circle cx="148" cy="506" r="3.2" class="hole"/>
+<circle cx="148" cy="542" r="3.2" class="hole"/>
+<circle cx="184" cy="110" r="3.2" class="hole"/>
+<circle cx="184" cy="146" r="3.2" class="hole"/>
+<circle cx="184" cy="182" r="3.2" class="hole"/>
+<circle cx="184" cy="218" r="3.2" class="hole"/>
+<circle cx="184" cy="254" r="3.2" class="hole"/>
+<circle cx="184" cy="290" r="3.2" class="hole"/>
+<circle cx="184" cy="326" r="3.2" class="hole"/>
+<circle cx="184" cy="362" r="3.2" class="hole"/>
+<circle cx="184" cy="398" r="3.2" class="hole"/>
+<circle cx="184" cy="434" r="3.2" class="hole"/>
+<circle cx="184" cy="470" r="3.2" class="hole"/>
+<circle cx="184" cy="506" r="3.2" class="hole"/>
+<circle cx="184" cy="542" r="3.2" class="hole"/>
+<circle cx="220" cy="110" r="3.2" class="hole"/>
+<circle cx="220" cy="146" r="3.2" class="hole"/>
+<circle cx="220" cy="182" r="3.2" class="hole"/>
+<circle cx="220" cy="218" r="3.2" class="hole"/>
+<circle cx="220" cy="254" r="3.2" class="hole"/>
+<circle cx="220" cy="290" r="3.2" class="hole"/>
+<circle cx="220" cy="326" r="3.2" class="hole"/>
+<circle cx="220" cy="362" r="3.2" class="hole"/>
+<circle cx="220" cy="398" r="3.2" class="hole"/>
+<circle cx="220" cy="434" r="3.2" class="hole"/>
+<circle cx="220" cy="470" r="3.2" class="hole"/>
+<circle cx="220" cy="506" r="3.2" class="hole"/>
+<circle cx="220" cy="542" r="3.2" class="hole"/>
+<circle cx="256" cy="110" r="3.2" class="hole"/>
+<circle cx="256" cy="146" r="3.2" class="hole"/>
+<circle cx="256" cy="182" r="3.2" class="hole"/>
+<circle cx="256" cy="218" r="3.2" class="hole"/>
+<circle cx="256" cy="254" r="3.2" class="hole"/>
+<circle cx="256" cy="290" r="3.2" class="hole"/>
+<circle cx="256" cy="326" r="3.2" class="hole"/>
+<circle cx="256" cy="362" r="3.2" class="hole"/>
+<circle cx="256" cy="398" r="3.2" class="hole"/>
+<circle cx="256" cy="434" r="3.2" class="hole"/>
+<circle cx="256" cy="470" r="3.2" class="hole"/>
+<circle cx="256" cy="506" r="3.2" class="hole"/>
+<circle cx="256" cy="542" r="3.2" class="hole"/>
+<circle cx="292" cy="110" r="3.2" class="hole"/>
+<circle cx="292" cy="146" r="3.2" class="hole"/>
+<circle cx="292" cy="182" r="3.2" class="hole"/>
+<circle cx="292" cy="218" r="3.2" class="hole"/>
+<circle cx="292" cy="254" r="3.2" class="hole"/>
+<circle cx="292" cy="290" r="3.2" class="hole"/>
+<circle cx="292" cy="326" r="3.2" class="hole"/>
+<circle cx="292" cy="362" r="3.2" class="hole"/>
+<circle cx="292" cy="398" r="3.2" class="hole"/>
+<circle cx="292" cy="434" r="3.2" class="hole"/>
+<circle cx="292" cy="470" r="3.2" class="hole"/>
+<circle cx="292" cy="506" r="3.2" class="hole"/>
+<circle cx="292" cy="542" r="3.2" class="hole"/>
+<circle cx="328" cy="110" r="3.2" class="hole"/>
+<circle cx="328" cy="146" r="3.2" class="hole"/>
+<circle cx="328" cy="182" r="3.2" class="hole"/>
+<circle cx="328" cy="218" r="3.2" class="hole"/>
+<circle cx="328" cy="254" r="3.2" class="hole"/>
+<circle cx="328" cy="290" r="3.2" class="hole"/>
+<circle cx="328" cy="326" r="3.2" class="hole"/>
+<circle cx="328" cy="362" r="3.2" class="hole"/>
+<circle cx="328" cy="398" r="3.2" class="hole"/>
+<circle cx="328" cy="434" r="3.2" class="hole"/>
+<circle cx="328" cy="470" r="3.2" class="hole"/>
+<circle cx="328" cy="506" r="3.2" class="hole"/>
+<circle cx="328" cy="542" r="3.2" class="hole"/>
+<circle cx="364" cy="110" r="3.2" class="hole"/>
+<circle cx="364" cy="146" r="3.2" class="hole"/>
+<circle cx="364" cy="182" r="3.2" class="hole"/>
+<circle cx="364" cy="218" r="3.2" class="hole"/>
+<circle cx="364" cy="254" r="3.2" class="hole"/>
+<circle cx="364" cy="290" r="3.2" class="hole"/>
+<circle cx="364" cy="326" r="3.2" class="hole"/>
+<circle cx="364" cy="362" r="3.2" class="hole"/>
+<circle cx="364" cy="398" r="3.2" class="hole"/>
+<circle cx="364" cy="434" r="3.2" class="hole"/>
+<circle cx="364" cy="470" r="3.2" class="hole"/>
+<circle cx="364" cy="506" r="3.2" class="hole"/>
+<circle cx="364" cy="542" r="3.2" class="hole"/>
+<circle cx="400" cy="110" r="3.2" class="hole"/>
+<circle cx="400" cy="146" r="3.2" class="hole"/>
+<circle cx="400" cy="182" r="3.2" class="hole"/>
+<circle cx="400" cy="218" r="3.2" class="hole"/>
+<circle cx="400" cy="254" r="3.2" class="hole"/>
+<circle cx="400" cy="290" r="3.2" class="hole"/>
+<circle cx="400" cy="326" r="3.2" class="hole"/>
+<circle cx="400" cy="362" r="3.2" class="hole"/>
+<circle cx="400" cy="398" r="3.2" class="hole"/>
+<circle cx="400" cy="434" r="3.2" class="hole"/>
+<circle cx="400" cy="470" r="3.2" class="hole"/>
+<circle cx="400" cy="506" r="3.2" class="hole"/>
+<circle cx="400" cy="542" r="3.2" class="hole"/>
+<circle cx="436" cy="110" r="3.2" class="hole"/>
+<circle cx="436" cy="146" r="3.2" class="hole"/>
+<circle cx="436" cy="182" r="3.2" class="hole"/>
+<circle cx="436" cy="218" r="3.2" class="hole"/>
+<circle cx="436" cy="254" r="3.2" class="hole"/>
+<circle cx="436" cy="290" r="3.2" class="hole"/>
+<circle cx="436" cy="326" r="3.2" class="hole"/>
+<circle cx="436" cy="362" r="3.2" class="hole"/>
+<circle cx="436" cy="398" r="3.2" class="hole"/>
+<circle cx="436" cy="434" r="3.2" class="hole"/>
+<circle cx="436" cy="470" r="3.2" class="hole"/>
+<circle cx="436" cy="506" r="3.2" class="hole"/>
+<circle cx="436" cy="542" r="3.2" class="hole"/>
+<circle cx="472" cy="110" r="3.2" class="hole"/>
+<circle cx="472" cy="146" r="3.2" class="hole"/>
+<circle cx="472" cy="182" r="3.2" class="hole"/>
+<circle cx="472" cy="218" r="3.2" class="hole"/>
+<circle cx="472" cy="254" r="3.2" class="hole"/>
+<circle cx="472" cy="290" r="3.2" class="hole"/>
+<circle cx="472" cy="326" r="3.2" class="hole"/>
+<circle cx="472" cy="362" r="3.2" class="hole"/>
+<circle cx="472" cy="398" r="3.2" class="hole"/>
+<circle cx="472" cy="434" r="3.2" class="hole"/>
+<circle cx="472" cy="470" r="3.2" class="hole"/>
+<circle cx="472" cy="506" r="3.2" class="hole"/>
+<circle cx="472" cy="542" r="3.2" class="hole"/>
+<circle cx="508" cy="110" r="3.2" class="hole"/>
+<circle cx="508" cy="146" r="3.2" class="hole"/>
+<circle cx="508" cy="182" r="3.2" class="hole"/>
+<circle cx="508" cy="218" r="3.2" class="hole"/>
+<circle cx="508" cy="254" r="3.2" class="hole"/>
+<circle cx="508" cy="290" r="3.2" class="hole"/>
+<circle cx="508" cy="326" r="3.2" class="hole"/>
+<circle cx="508" cy="362" r="3.2" class="hole"/>
+<circle cx="508" cy="398" r="3.2" class="hole"/>
+<circle cx="508" cy="434" r="3.2" class="hole"/>
+<circle cx="508" cy="470" r="3.2" class="hole"/>
+<circle cx="508" cy="506" r="3.2" class="hole"/>
+<circle cx="508" cy="542" r="3.2" class="hole"/>
+<circle cx="544" cy="110" r="3.2" class="hole"/>
+<circle cx="544" cy="146" r="3.2" class="hole"/>
+<circle cx="544" cy="182" r="3.2" class="hole"/>
+<circle cx="544" cy="218" r="3.2" class="hole"/>
+<circle cx="544" cy="254" r="3.2" class="hole"/>
+<circle cx="544" cy="290" r="3.2" class="hole"/>
+<circle cx="544" cy="326" r="3.2" class="hole"/>
+<circle cx="544" cy="362" r="3.2" class="hole"/>
+<circle cx="544" cy="398" r="3.2" class="hole"/>
+<circle cx="544" cy="434" r="3.2" class="hole"/>
+<circle cx="544" cy="470" r="3.2" class="hole"/>
+<circle cx="544" cy="506" r="3.2" class="hole"/>
+<circle cx="544" cy="542" r="3.2" class="hole"/>
+<circle cx="580" cy="110" r="3.2" class="hole"/>
+<circle cx="580" cy="146" r="3.2" class="hole"/>
+<circle cx="580" cy="182" r="3.2" class="hole"/>
+<circle cx="580" cy="218" r="3.2" class="hole"/>
+<circle cx="580" cy="254" r="3.2" class="hole"/>
+<circle cx="580" cy="290" r="3.2" class="hole"/>
+<circle cx="580" cy="326" r="3.2" class="hole"/>
+<circle cx="580" cy="362" r="3.2" class="hole"/>
+<circle cx="580" cy="398" r="3.2" class="hole"/>
+<circle cx="580" cy="434" r="3.2" class="hole"/>
+<circle cx="580" cy="470" r="3.2" class="hole"/>
+<circle cx="580" cy="506" r="3.2" class="hole"/>
+<circle cx="580" cy="542" r="3.2" class="hole"/>
+<circle cx="616" cy="110" r="3.2" class="hole"/>
+<circle cx="616" cy="146" r="3.2" class="hole"/>
+<circle cx="616" cy="182" r="3.2" class="hole"/>
+<circle cx="616" cy="218" r="3.2" class="hole"/>
+<circle cx="616" cy="254" r="3.2" class="hole"/>
+<circle cx="616" cy="290" r="3.2" class="hole"/>
+<circle cx="616" cy="326" r="3.2" class="hole"/>
+<circle cx="616" cy="362" r="3.2" class="hole"/>
+<circle cx="616" cy="398" r="3.2" class="hole"/>
+<circle cx="616" cy="434" r="3.2" class="hole"/>
+<circle cx="616" cy="470" r="3.2" class="hole"/>
+<circle cx="616" cy="506" r="3.2" class="hole"/>
+<circle cx="616" cy="542" r="3.2" class="hole"/>
+<polyline points="76,110 112,110 148,110 184,110 220,110 256,110 292,110 328,110 364,110" class="tru"/>
+<polyline points="76,110 76,146" class="tru"/>
+<polyline points="256,110 256,146 256,182" class="tru"/>
+<polyline points="184,182 220,182 256,182" class="tru"/>
+<polyline points="112,146 112,182 112,218 112,254 112,290 112,326 112,362 112,398 112,434 112,470 112,506 112,542" class="tru"/>
+<polyline points="112,218 148,218 184,218 220,218 256,218 292,218" class="tru"/>
+<polyline points="292,146 292,182 292,218" class="tru"/>
+<polyline points="112,542 148,542 184,542 220,542 256,542 292,542 328,542 364,542 400,542 436,542 472,542 508,542 544,542 580,542 616,542" class="tru"/>
+<polyline points="256,470 256,506 256,542" class="tru"/>
+<polyline points="580,434 580,470 580,506 580,542" class="tru"/>
+<polyline points="148,146 148,182" class="tru"/>
+<polyline points="148,254 148,290 148,326 148,362 148,398 148,434 148,470 148,506" class="tru"/>
+<polyline points="184,326 184,362 184,398 184,434 184,470 184,506" class="tru"/>
+<polyline points="328,146 328,182 328,218 328,254" class="tru"/>
+<polyline points="220,254 256,254 292,254 328,254 364,254" class="tru"/>
+<polyline points="220,254 220,290 220,326 220,362 220,398 220,434 220,470 220,506" class="tru"/>
+<polyline points="292,470 292,506" class="tru"/>
+<polyline points="292,470 328,470 364,470" class="tru"/>
+<polyline points="328,506 364,506 400,506" class="tru"/>
+<polyline points="400,146 400,182" class="tru"/>
+<polyline points="364,326 400,326" class="tru"/>
+<polyline points="436,146 436,182 436,218 436,254 436,290 436,326 436,362 436,398" class="tru"/>
+<polyline points="436,398 472,398 508,398" class="tru"/>
+<polyline points="508,398 508,434" class="tru"/>
+<polyline points="544,398 544,434 544,470 544,506" class="tru"/>
+<polyline points="544,398 580,398 616,398" class="tru"/>
+<line x1="148" y1="182" x2="148" y2="254" class="jmp"/>
+<circle cx="148" cy="182" r="4.5" class="jmpd"/>
+<circle cx="148" cy="254" r="4.5" class="jmpd"/>
+<text x="140.0" y="222.0" text-anchor="end" class="lbs">Brücke</text>
+<rect x="60" y="120" width="104" height="40" rx="5" class="body"/>
+<path d="M 99 120 A 13 13 0 0 1 125 120" class="body"/>
+<text x="112.0" y="137.0" text-anchor="middle" class="lbn">TSOP34836</text>
+<circle cx="76" cy="146" r="4" class="legd"/>
+<text x="76.0" y="171.0" text-anchor="middle" class="lbp">VS</text>
+<circle cx="112" cy="146" r="4" class="legd"/>
+<text x="112.0" y="171.0" text-anchor="middle" class="lbp">GND</text>
+<circle cx="148" cy="146" r="4" class="legd"/>
+<text x="148.0" y="171.0" text-anchor="middle" class="lbp">OUT</text>
+<rect x="240" y="120" width="104" height="40" rx="5" class="body"/>
+<path d="M 279 120 A 13 13 0 0 1 305 120" class="body"/>
+<text x="292.0" y="137.0" text-anchor="middle" class="lbn">TSMP98000</text>
+<circle cx="256" cy="146" r="4" class="legd"/>
+<text x="256.0" y="171.0" text-anchor="middle" class="lbp">VS</text>
+<circle cx="292" cy="146" r="4" class="legd"/>
+<text x="292.0" y="171.0" text-anchor="middle" class="lbp">GND</text>
+<circle cx="328" cy="146" r="4" class="legd"/>
+<text x="328.0" y="171.0" text-anchor="middle" class="lbp">OUT</text>
+<polyline points="400,146 400,86" class="leg"/>
+<circle cx="400" cy="146" r="4" class="legd"/>
+<polyline points="436,146 436,86" class="leg"/>
+<circle cx="436" cy="146" r="4" class="legd"/>
+<path d="M 401.0 86.0 L 401.0 44.0 A 17 17 0 0 1 435.0 44.0 L 435.0 86.0 Z" class="body"/>
+<rect x="397.0" y="79.0" width="42" height="7" rx="2" class="body"/>
+<line x1="439.0" y1="77.0" x2="439.0" y2="87.0" class="flat"/>
+<text x="400.0" y="170.0" text-anchor="middle" class="lbp">A+</text>
+<text x="436.0" y="170.0" text-anchor="middle" class="lbp">K−</text>
+<text x="448.0" y="52.0" text-anchor="start" class="lbn">D1 TSAL6200</text>
+<text x="448.0" y="68.0" text-anchor="start" class="lbs">liegend, zeigt nach vorn</text>
+<text x="448.0" y="82.0" text-anchor="start" class="lbs">flache Kante = Kathode</text>
+<rect x="211" y="174" width="18" height="52" rx="8" class="body"/>
+<text x="220.0" y="272.9" text-anchor="middle" class="lbn">C1</text>
+<text x="220.0" y="287.9" text-anchor="middle" class="lbv">100 nF</text>
+<line x1="184" y1="182" x2="184" y2="326" class="leg"/>
+<rect x="176.0" y="199.0" width="16" height="110.0" rx="5" class="body"/>
+<circle cx="184" cy="182" r="4" class="legd"/>
+<circle cx="184" cy="326" r="4" class="legd"/>
+<text x="169.6" y="299.2" text-anchor="end" class="lbn">R1</text>
+<text x="169.6" y="314.2" text-anchor="end" class="lbv">100 Ω</text>
+<line x1="364" y1="110" x2="364" y2="254" class="leg"/>
+<rect x="356.0" y="127.0" width="16" height="110.0" rx="5" class="body"/>
+<circle cx="364" cy="110" r="4" class="legd"/>
+<circle cx="364" cy="254" r="4" class="legd"/>
+<text x="350.3" y="200.2" text-anchor="end" class="lbn">R2</text>
+<text x="350.3" y="215.2" text-anchor="end" class="lbv">4,7 kΩ</text>
+<line x1="400" y1="182" x2="400" y2="326" class="leg"/>
+<rect x="392.0" y="199.0" width="16" height="110.0" rx="5" class="body"/>
+<circle cx="400" cy="182" r="4" class="legd"/>
+<circle cx="400" cy="326" r="4" class="legd"/>
+<text x="414.4" y="252.4" text-anchor="start" class="lbn">R3b</text>
+<text x="414.4" y="267.4" text-anchor="start" class="lbv">10 Ω</text>
+<line x1="364" y1="326" x2="364" y2="470" class="leg"/>
+<rect x="356.0" y="343.0" width="16" height="110.0" rx="5" class="body"/>
+<circle cx="364" cy="326" r="4" class="legd"/>
+<circle cx="364" cy="470" r="4" class="legd"/>
+<text x="349.6" y="396.4" text-anchor="end" class="lbn">R3a</text>
+<text x="349.6" y="411.4" text-anchor="end" class="lbv">20 Ω</text>
+<circle cx="274.0" cy="470.0" r="21" class="body"/>
+<path d="M 265.0 451.0 A 21 21 0 0 0 265.0 489.0 Z" class="stripe"/>
+<circle cx="256" cy="470" r="4" class="legd"/>
+<circle cx="292" cy="470" r="4" class="legd"/>
+<text x="301.0" y="461.0" text-anchor="middle" class="lbn">+</text>
+<text x="274.0" y="419.4" text-anchor="middle" class="lbn">C2 100 µF</text>
+<line x1="400" y1="506" x2="544" y2="506" class="leg"/>
+<rect x="417.0" y="498.0" width="110.0" height="16" rx="5" class="body"/>
+<circle cx="400" cy="506" r="4" class="legd"/>
+<circle cx="544" cy="506" r="4" class="legd"/>
+<text x="472.0" y="485.3" text-anchor="middle" class="lbn">R4</text>
+<text x="472.0" y="500.3" text-anchor="middle" class="lbv">220 Ω</text>
+<line x1="616" y1="398" x2="616" y2="542" class="leg"/>
+<rect x="608.0" y="415.0" width="16" height="110.0" rx="5" class="body"/>
+<circle cx="616" cy="398" r="4" class="legd"/>
+<circle cx="616" cy="542" r="4" class="legd"/>
+<text x="632.2" y="468.4" text-anchor="start" class="lbn">R5</text>
+<text x="632.2" y="483.4" text-anchor="start" class="lbv">10 kΩ</text>
+<path d="M 492 421 L 596 421 A 52 40 0 0 1 492 421 Z" class="body"/>
+<circle cx="508" cy="434" r="4" class="legd"/>
+<text x="508.0" y="452.0" text-anchor="middle" class="lbp">C</text>
+<circle cx="544" cy="434" r="4" class="legd"/>
+<text x="544.0" y="452.0" text-anchor="middle" class="lbp">B</text>
+<circle cx="580" cy="434" r="4" class="legd"/>
+<text x="580.0" y="452.0" text-anchor="middle" class="lbp">E</text>
+<text x="544.0" y="414.0" text-anchor="middle" class="lbn">Q1 2N2222A</text>
+<rect x="133" y="495" width="210" height="22" rx="2" class="hdr"/>
+<rect x="143" y="501" width="9" height="9" class="hdrp"/>
+<text x="148.0" y="580.0" text-anchor="middle" class="lbh">RX</text>
+<rect x="179" y="501" width="9" height="9" class="hdrp"/>
+<text x="184.0" y="580.0" text-anchor="middle" class="lbh">3V</text>
+<rect x="215" y="501" width="9" height="9" class="hdrp"/>
+<text x="220.0" y="580.0" text-anchor="middle" class="lbh">TX</text>
+<rect x="251" y="501" width="9" height="9" class="hdrp"/>
+<text x="256.0" y="580.0" text-anchor="middle" class="lbh">GND</text>
+<rect x="287" y="501" width="9" height="9" class="hdrp"/>
+<text x="292.0" y="580.0" text-anchor="middle" class="lbh">5V</text>
+<rect x="323" y="501" width="9" height="9" class="hdrp"/>
+<text x="328.0" y="580.0" text-anchor="middle" class="lbh">A3</text>
+<text x="238.0" y="600.0" text-anchor="middle" class="lbs">J1 Stiftleiste → Dupont-Kabel zum QT Py</text>
+</svg>
+      </div>
+    </figure>
+    <figure class="panel">
+      <figcaption>Lötseite, von unten</figcaption>
+      <div class="scroll">
+<svg class="pcbv" viewBox="0 70 706 536" role="img"><title>Lötplan Lötseite, von unten gesehen, links und rechts vertauscht</title>
+<rect x="22" y="92" width="612" height="468" rx="6" class="pcb"/>
+<circle cx="40" cy="110" r="3.2" class="hole"/>
+<circle cx="40" cy="146" r="3.2" class="hole"/>
+<circle cx="40" cy="182" r="3.2" class="hole"/>
+<circle cx="40" cy="218" r="3.2" class="hole"/>
+<circle cx="40" cy="254" r="3.2" class="hole"/>
+<circle cx="40" cy="290" r="3.2" class="hole"/>
+<circle cx="40" cy="326" r="3.2" class="hole"/>
+<circle cx="40" cy="362" r="3.2" class="hole"/>
+<circle cx="40" cy="398" r="3.2" class="hole"/>
+<circle cx="40" cy="434" r="3.2" class="hole"/>
+<circle cx="40" cy="470" r="3.2" class="hole"/>
+<circle cx="40" cy="506" r="3.2" class="hole"/>
+<circle cx="40" cy="542" r="3.2" class="hole"/>
+<circle cx="76" cy="110" r="3.2" class="hole"/>
+<circle cx="76" cy="146" r="3.2" class="hole"/>
+<circle cx="76" cy="182" r="3.2" class="hole"/>
+<circle cx="76" cy="218" r="3.2" class="hole"/>
+<circle cx="76" cy="254" r="3.2" class="hole"/>
+<circle cx="76" cy="290" r="3.2" class="hole"/>
+<circle cx="76" cy="326" r="3.2" class="hole"/>
+<circle cx="76" cy="362" r="3.2" class="hole"/>
+<circle cx="76" cy="398" r="3.2" class="hole"/>
+<circle cx="76" cy="434" r="3.2" class="hole"/>
+<circle cx="76" cy="470" r="3.2" class="hole"/>
+<circle cx="76" cy="506" r="3.2" class="hole"/>
+<circle cx="76" cy="542" r="3.2" class="hole"/>
+<circle cx="112" cy="110" r="3.2" class="hole"/>
+<circle cx="112" cy="146" r="3.2" class="hole"/>
+<circle cx="112" cy="182" r="3.2" class="hole"/>
+<circle cx="112" cy="218" r="3.2" class="hole"/>
+<circle cx="112" cy="254" r="3.2" class="hole"/>
+<circle cx="112" cy="290" r="3.2" class="hole"/>
+<circle cx="112" cy="326" r="3.2" class="hole"/>
+<circle cx="112" cy="362" r="3.2" class="hole"/>
+<circle cx="112" cy="398" r="3.2" class="hole"/>
+<circle cx="112" cy="434" r="3.2" class="hole"/>
+<circle cx="112" cy="470" r="3.2" class="hole"/>
+<circle cx="112" cy="506" r="3.2" class="hole"/>
+<circle cx="112" cy="542" r="3.2" class="hole"/>
+<circle cx="148" cy="110" r="3.2" class="hole"/>
+<circle cx="148" cy="146" r="3.2" class="hole"/>
+<circle cx="148" cy="182" r="3.2" class="hole"/>
+<circle cx="148" cy="218" r="3.2" class="hole"/>
+<circle cx="148" cy="254" r="3.2" class="hole"/>
+<circle cx="148" cy="290" r="3.2" class="hole"/>
+<circle cx="148" cy="326" r="3.2" class="hole"/>
+<circle cx="148" cy="362" r="3.2" class="hole"/>
+<circle cx="148" cy="398" r="3.2" class="hole"/>
+<circle cx="148" cy="434" r="3.2" class="hole"/>
+<circle cx="148" cy="470" r="3.2" class="hole"/>
+<circle cx="148" cy="506" r="3.2" class="hole"/>
+<circle cx="148" cy="542" r="3.2" class="hole"/>
+<circle cx="184" cy="110" r="3.2" class="hole"/>
+<circle cx="184" cy="146" r="3.2" class="hole"/>
+<circle cx="184" cy="182" r="3.2" class="hole"/>
+<circle cx="184" cy="218" r="3.2" class="hole"/>
+<circle cx="184" cy="254" r="3.2" class="hole"/>
+<circle cx="184" cy="290" r="3.2" class="hole"/>
+<circle cx="184" cy="326" r="3.2" class="hole"/>
+<circle cx="184" cy="362" r="3.2" class="hole"/>
+<circle cx="184" cy="398" r="3.2" class="hole"/>
+<circle cx="184" cy="434" r="3.2" class="hole"/>
+<circle cx="184" cy="470" r="3.2" class="hole"/>
+<circle cx="184" cy="506" r="3.2" class="hole"/>
+<circle cx="184" cy="542" r="3.2" class="hole"/>
+<circle cx="220" cy="110" r="3.2" class="hole"/>
+<circle cx="220" cy="146" r="3.2" class="hole"/>
+<circle cx="220" cy="182" r="3.2" class="hole"/>
+<circle cx="220" cy="218" r="3.2" class="hole"/>
+<circle cx="220" cy="254" r="3.2" class="hole"/>
+<circle cx="220" cy="290" r="3.2" class="hole"/>
+<circle cx="220" cy="326" r="3.2" class="hole"/>
+<circle cx="220" cy="362" r="3.2" class="hole"/>
+<circle cx="220" cy="398" r="3.2" class="hole"/>
+<circle cx="220" cy="434" r="3.2" class="hole"/>
+<circle cx="220" cy="470" r="3.2" class="hole"/>
+<circle cx="220" cy="506" r="3.2" class="hole"/>
+<circle cx="220" cy="542" r="3.2" class="hole"/>
+<circle cx="256" cy="110" r="3.2" class="hole"/>
+<circle cx="256" cy="146" r="3.2" class="hole"/>
+<circle cx="256" cy="182" r="3.2" class="hole"/>
+<circle cx="256" cy="218" r="3.2" class="hole"/>
+<circle cx="256" cy="254" r="3.2" class="hole"/>
+<circle cx="256" cy="290" r="3.2" class="hole"/>
+<circle cx="256" cy="326" r="3.2" class="hole"/>
+<circle cx="256" cy="362" r="3.2" class="hole"/>
+<circle cx="256" cy="398" r="3.2" class="hole"/>
+<circle cx="256" cy="434" r="3.2" class="hole"/>
+<circle cx="256" cy="470" r="3.2" class="hole"/>
+<circle cx="256" cy="506" r="3.2" class="hole"/>
+<circle cx="256" cy="542" r="3.2" class="hole"/>
+<circle cx="292" cy="110" r="3.2" class="hole"/>
+<circle cx="292" cy="146" r="3.2" class="hole"/>
+<circle cx="292" cy="182" r="3.2" class="hole"/>
+<circle cx="292" cy="218" r="3.2" class="hole"/>
+<circle cx="292" cy="254" r="3.2" class="hole"/>
+<circle cx="292" cy="290" r="3.2" class="hole"/>
+<circle cx="292" cy="326" r="3.2" class="hole"/>
+<circle cx="292" cy="362" r="3.2" class="hole"/>
+<circle cx="292" cy="398" r="3.2" class="hole"/>
+<circle cx="292" cy="434" r="3.2" class="hole"/>
+<circle cx="292" cy="470" r="3.2" class="hole"/>
+<circle cx="292" cy="506" r="3.2" class="hole"/>
+<circle cx="292" cy="542" r="3.2" class="hole"/>
+<circle cx="328" cy="110" r="3.2" class="hole"/>
+<circle cx="328" cy="146" r="3.2" class="hole"/>
+<circle cx="328" cy="182" r="3.2" class="hole"/>
+<circle cx="328" cy="218" r="3.2" class="hole"/>
+<circle cx="328" cy="254" r="3.2" class="hole"/>
+<circle cx="328" cy="290" r="3.2" class="hole"/>
+<circle cx="328" cy="326" r="3.2" class="hole"/>
+<circle cx="328" cy="362" r="3.2" class="hole"/>
+<circle cx="328" cy="398" r="3.2" class="hole"/>
+<circle cx="328" cy="434" r="3.2" class="hole"/>
+<circle cx="328" cy="470" r="3.2" class="hole"/>
+<circle cx="328" cy="506" r="3.2" class="hole"/>
+<circle cx="328" cy="542" r="3.2" class="hole"/>
+<circle cx="364" cy="110" r="3.2" class="hole"/>
+<circle cx="364" cy="146" r="3.2" class="hole"/>
+<circle cx="364" cy="182" r="3.2" class="hole"/>
+<circle cx="364" cy="218" r="3.2" class="hole"/>
+<circle cx="364" cy="254" r="3.2" class="hole"/>
+<circle cx="364" cy="290" r="3.2" class="hole"/>
+<circle cx="364" cy="326" r="3.2" class="hole"/>
+<circle cx="364" cy="362" r="3.2" class="hole"/>
+<circle cx="364" cy="398" r="3.2" class="hole"/>
+<circle cx="364" cy="434" r="3.2" class="hole"/>
+<circle cx="364" cy="470" r="3.2" class="hole"/>
+<circle cx="364" cy="506" r="3.2" class="hole"/>
+<circle cx="364" cy="542" r="3.2" class="hole"/>
+<circle cx="400" cy="110" r="3.2" class="hole"/>
+<circle cx="400" cy="146" r="3.2" class="hole"/>
+<circle cx="400" cy="182" r="3.2" class="hole"/>
+<circle cx="400" cy="218" r="3.2" class="hole"/>
+<circle cx="400" cy="254" r="3.2" class="hole"/>
+<circle cx="400" cy="290" r="3.2" class="hole"/>
+<circle cx="400" cy="326" r="3.2" class="hole"/>
+<circle cx="400" cy="362" r="3.2" class="hole"/>
+<circle cx="400" cy="398" r="3.2" class="hole"/>
+<circle cx="400" cy="434" r="3.2" class="hole"/>
+<circle cx="400" cy="470" r="3.2" class="hole"/>
+<circle cx="400" cy="506" r="3.2" class="hole"/>
+<circle cx="400" cy="542" r="3.2" class="hole"/>
+<circle cx="436" cy="110" r="3.2" class="hole"/>
+<circle cx="436" cy="146" r="3.2" class="hole"/>
+<circle cx="436" cy="182" r="3.2" class="hole"/>
+<circle cx="436" cy="218" r="3.2" class="hole"/>
+<circle cx="436" cy="254" r="3.2" class="hole"/>
+<circle cx="436" cy="290" r="3.2" class="hole"/>
+<circle cx="436" cy="326" r="3.2" class="hole"/>
+<circle cx="436" cy="362" r="3.2" class="hole"/>
+<circle cx="436" cy="398" r="3.2" class="hole"/>
+<circle cx="436" cy="434" r="3.2" class="hole"/>
+<circle cx="436" cy="470" r="3.2" class="hole"/>
+<circle cx="436" cy="506" r="3.2" class="hole"/>
+<circle cx="436" cy="542" r="3.2" class="hole"/>
+<circle cx="472" cy="110" r="3.2" class="hole"/>
+<circle cx="472" cy="146" r="3.2" class="hole"/>
+<circle cx="472" cy="182" r="3.2" class="hole"/>
+<circle cx="472" cy="218" r="3.2" class="hole"/>
+<circle cx="472" cy="254" r="3.2" class="hole"/>
+<circle cx="472" cy="290" r="3.2" class="hole"/>
+<circle cx="472" cy="326" r="3.2" class="hole"/>
+<circle cx="472" cy="362" r="3.2" class="hole"/>
+<circle cx="472" cy="398" r="3.2" class="hole"/>
+<circle cx="472" cy="434" r="3.2" class="hole"/>
+<circle cx="472" cy="470" r="3.2" class="hole"/>
+<circle cx="472" cy="506" r="3.2" class="hole"/>
+<circle cx="472" cy="542" r="3.2" class="hole"/>
+<circle cx="508" cy="110" r="3.2" class="hole"/>
+<circle cx="508" cy="146" r="3.2" class="hole"/>
+<circle cx="508" cy="182" r="3.2" class="hole"/>
+<circle cx="508" cy="218" r="3.2" class="hole"/>
+<circle cx="508" cy="254" r="3.2" class="hole"/>
+<circle cx="508" cy="290" r="3.2" class="hole"/>
+<circle cx="508" cy="326" r="3.2" class="hole"/>
+<circle cx="508" cy="362" r="3.2" class="hole"/>
+<circle cx="508" cy="398" r="3.2" class="hole"/>
+<circle cx="508" cy="434" r="3.2" class="hole"/>
+<circle cx="508" cy="470" r="3.2" class="hole"/>
+<circle cx="508" cy="506" r="3.2" class="hole"/>
+<circle cx="508" cy="542" r="3.2" class="hole"/>
+<circle cx="544" cy="110" r="3.2" class="hole"/>
+<circle cx="544" cy="146" r="3.2" class="hole"/>
+<circle cx="544" cy="182" r="3.2" class="hole"/>
+<circle cx="544" cy="218" r="3.2" class="hole"/>
+<circle cx="544" cy="254" r="3.2" class="hole"/>
+<circle cx="544" cy="290" r="3.2" class="hole"/>
+<circle cx="544" cy="326" r="3.2" class="hole"/>
+<circle cx="544" cy="362" r="3.2" class="hole"/>
+<circle cx="544" cy="398" r="3.2" class="hole"/>
+<circle cx="544" cy="434" r="3.2" class="hole"/>
+<circle cx="544" cy="470" r="3.2" class="hole"/>
+<circle cx="544" cy="506" r="3.2" class="hole"/>
+<circle cx="544" cy="542" r="3.2" class="hole"/>
+<circle cx="580" cy="110" r="3.2" class="hole"/>
+<circle cx="580" cy="146" r="3.2" class="hole"/>
+<circle cx="580" cy="182" r="3.2" class="hole"/>
+<circle cx="580" cy="218" r="3.2" class="hole"/>
+<circle cx="580" cy="254" r="3.2" class="hole"/>
+<circle cx="580" cy="290" r="3.2" class="hole"/>
+<circle cx="580" cy="326" r="3.2" class="hole"/>
+<circle cx="580" cy="362" r="3.2" class="hole"/>
+<circle cx="580" cy="398" r="3.2" class="hole"/>
+<circle cx="580" cy="434" r="3.2" class="hole"/>
+<circle cx="580" cy="470" r="3.2" class="hole"/>
+<circle cx="580" cy="506" r="3.2" class="hole"/>
+<circle cx="580" cy="542" r="3.2" class="hole"/>
+<circle cx="616" cy="110" r="3.2" class="hole"/>
+<circle cx="616" cy="146" r="3.2" class="hole"/>
+<circle cx="616" cy="182" r="3.2" class="hole"/>
+<circle cx="616" cy="218" r="3.2" class="hole"/>
+<circle cx="616" cy="254" r="3.2" class="hole"/>
+<circle cx="616" cy="290" r="3.2" class="hole"/>
+<circle cx="616" cy="326" r="3.2" class="hole"/>
+<circle cx="616" cy="362" r="3.2" class="hole"/>
+<circle cx="616" cy="398" r="3.2" class="hole"/>
+<circle cx="616" cy="434" r="3.2" class="hole"/>
+<circle cx="616" cy="470" r="3.2" class="hole"/>
+<circle cx="616" cy="506" r="3.2" class="hole"/>
+<circle cx="616" cy="542" r="3.2" class="hole"/>
+<polyline points="580,110 544,110 508,110 472,110 436,110 400,110 364,110 328,110 292,110" class="trs"/>
+<polyline points="580,110 580,146" class="trs"/>
+<polyline points="400,110 400,146 400,182" class="trs"/>
+<polyline points="472,182 436,182 400,182" class="trs"/>
+<polyline points="544,146 544,182 544,218 544,254 544,290 544,326 544,362 544,398 544,434 544,470 544,506 544,542" class="trs"/>
+<polyline points="544,218 508,218 472,218 436,218 400,218 364,218" class="trs"/>
+<polyline points="364,146 364,182 364,218" class="trs"/>
+<polyline points="544,542 508,542 472,542 436,542 400,542 364,542 328,542 292,542 256,542 220,542 184,542 148,542 112,542 76,542 40,542" class="trs"/>
+<polyline points="400,470 400,506 400,542" class="trs"/>
+<polyline points="76,434 76,470 76,506 76,542" class="trs"/>
+<polyline points="508,146 508,182" class="trs"/>
+<polyline points="508,254 508,290 508,326 508,362 508,398 508,434 508,470 508,506" class="trs"/>
+<polyline points="472,326 472,362 472,398 472,434 472,470 472,506" class="trs"/>
+<polyline points="328,146 328,182 328,218 328,254" class="trs"/>
+<polyline points="436,254 400,254 364,254 328,254 292,254" class="trs"/>
+<polyline points="436,254 436,290 436,326 436,362 436,398 436,434 436,470 436,506" class="trs"/>
+<polyline points="364,470 364,506" class="trs"/>
+<polyline points="364,470 328,470 292,470" class="trs"/>
+<polyline points="328,506 292,506 256,506" class="trs"/>
+<polyline points="256,146 256,182" class="trs"/>
+<polyline points="292,326 256,326" class="trs"/>
+<polyline points="220,146 220,182 220,218 220,254 220,290 220,326 220,362 220,398" class="trs"/>
+<polyline points="220,398 184,398 148,398" class="trs"/>
+<polyline points="148,398 148,434" class="trs"/>
+<polyline points="112,398 112,434 112,470 112,506" class="trs"/>
+<polyline points="112,398 76,398 40,398" class="trs"/>
+<circle cx="580" cy="146" r="6.5" class="pad"/>
+<circle cx="544" cy="146" r="6.5" class="pad"/>
+<circle cx="508" cy="146" r="6.5" class="pad"/>
+<circle cx="400" cy="146" r="6.5" class="pad"/>
+<circle cx="364" cy="146" r="6.5" class="pad"/>
+<circle cx="328" cy="146" r="6.5" class="pad"/>
+<circle cx="256" cy="146" r="6.5" class="pad"/>
+<circle cx="220" cy="146" r="6.5" class="pad"/>
+<circle cx="436" cy="182" r="6.5" class="pad"/>
+<circle cx="436" cy="218" r="6.5" class="pad"/>
+<circle cx="472" cy="182" r="6.5" class="pad"/>
+<circle cx="472" cy="326" r="6.5" class="pad"/>
+<circle cx="292" cy="110" r="6.5" class="pad"/>
+<circle cx="292" cy="254" r="6.5" class="pad"/>
+<circle cx="256" cy="182" r="6.5" class="pad"/>
+<circle cx="256" cy="326" r="6.5" class="pad"/>
+<circle cx="292" cy="326" r="6.5" class="pad"/>
+<circle cx="292" cy="470" r="6.5" class="pad"/>
+<circle cx="400" cy="470" r="6.5" class="pad"/>
+<circle cx="364" cy="470" r="6.5" class="pad"/>
+<circle cx="256" cy="506" r="6.5" class="pad"/>
+<circle cx="112" cy="506" r="6.5" class="pad"/>
+<circle cx="40" cy="398" r="6.5" class="pad"/>
+<circle cx="40" cy="542" r="6.5" class="pad"/>
+<circle cx="148" cy="434" r="6.5" class="pad"/>
+<circle cx="112" cy="434" r="6.5" class="pad"/>
+<circle cx="76" cy="434" r="6.5" class="pad"/>
+<circle cx="508" cy="506" r="6.5" class="pad"/>
+<circle cx="472" cy="506" r="6.5" class="pad"/>
+<circle cx="436" cy="506" r="6.5" class="pad"/>
+<circle cx="400" cy="506" r="6.5" class="pad"/>
+<circle cx="364" cy="506" r="6.5" class="pad"/>
+<circle cx="328" cy="506" r="6.5" class="pad"/>
+<circle cx="508" cy="182" r="6.5" class="pad"/>
+<circle cx="508" cy="254" r="6.5" class="pad"/>
+<text x="544.0" y="130.0" text-anchor="middle" class="lbs">TSOP</text>
+<text x="364.0" y="130.0" text-anchor="middle" class="lbs">TSMP</text>
+<text x="238.0" y="130.0" text-anchor="middle" class="lbs">LED</text>
+<text x="112.0" y="420.0" text-anchor="middle" class="lbs">Q1</text>
+<text x="508.0" y="580.0" text-anchor="middle" class="lbh">RX</text>
+<text x="472.0" y="580.0" text-anchor="middle" class="lbh">3V</text>
+<text x="436.0" y="580.0" text-anchor="middle" class="lbh">TX</text>
+<text x="400.0" y="580.0" text-anchor="middle" class="lbh">GND</text>
+<text x="364.0" y="580.0" text-anchor="middle" class="lbh">5V</text>
+<text x="328.0" y="580.0" text-anchor="middle" class="lbh">A3</text>
+<text x="353.0" y="600.0" text-anchor="middle" class="lbs">von unten gesehen: links und rechts vertauscht</text>
+<line x1="508" y1="189" x2="508" y2="247" class="jmpb"/>
+</svg>
+      </div>
+    </figure>
+  </div>
+  <p class="lead">Die Linsen der Empfänger und die liegende IR-LED zeigen alle zur selben Kante („vorn“). Lies jedes Loch in der Oberseiten-Ansicht ab, nicht in der Unterseiten-Ansicht: Von unten sind links und rechts vertauscht. Die Zeichnung ist aus einer Netzliste erzeugt und gegen den Schaltplan geprüft: alle 11 Verbindungen vollständig, keine zwei Netze im selben Loch.</p>
+
+  <div class="two">
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>J1</th><th>Kabel zum QT Py</th></tr></thead>
+        <tbody>
+          <tr><td class="pin">RX</td><td>RX</td></tr>
+          <tr><td class="pin">3V</td><td>3V (nicht 5V!)</td></tr>
+          <tr><td class="pin">TX</td><td>TX</td></tr>
+          <tr><td class="pin">GND</td><td>GND</td></tr>
+          <tr><td class="pin">5V</td><td>5V</td></tr>
+          <tr><td class="pin">A3</td><td>A3</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>Teil</th><th>Wert</th><th>Einbau</th></tr></thead>
+        <tbody>
+          <tr><td class="pin">R1</td><td>100 Ω</td><td>liegend, 4 Raster</td></tr>
+          <tr><td class="pin">R2</td><td>4,7 kΩ</td><td>liegend, 4 Raster, neben der LED</td></tr>
+          <tr><td class="pin">R3a + R3b</td><td>20 Ω + 10 Ω</td><td>liegend, je 4 Raster</td></tr>
+          <tr><td class="pin">R4</td><td>220 Ω</td><td>liegend, 4 Raster</td></tr>
+          <tr><td class="pin">R5</td><td>10 kΩ</td><td>liegend, 4 Raster, am rechten Rand</td></tr>
+          <tr><td class="pin">C1</td><td>100 nF</td><td>Raster 2,54 mm</td></tr>
+          <tr><td class="pin">C2</td><td>100 µF</td><td>Minus-Streifen nach links, zu GND</td></tr>
+          <tr><td class="pin">J1</td><td>Stiftleiste 6-polig</td><td>dazu 6 Dupont-Kabel</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel steps-wrap">
+    <ol class="steps" id="steps2">
+      <li><label><input type="checkbox" id="p1"><span class="txt">Bauteile vom Breadboard abziehen. Die Platine so hinlegen, dass „vorn“ oben liegt, und die Löcher von links oben abzählen (Spalte 1 bis 17, Reihe 1 bis 13).</span></label></li>
+      <li><label><input type="checkbox" id="p2"><span class="txt">Zuerst die flachen Teile: die Drahtbrücke an der Spalte von TSOP-OUT, dann alle Widerstände liegend: R1, R2, R3a, R3b, R4 und R5. Die Beine unten nicht abschneiden, sondern als Lötbahn zum Nachbarloch umbiegen, wo der Plan eine Bahn zeigt.</span></label></li>
+      <li><label><input type="checkbox" id="p3"><span class="txt">C1 und die Stiftleiste J1.</span></label></li>
+      <li><label><input type="checkbox" id="p4"><span class="txt">Q1 mit der flachen Seite zur LED (nach vorn): von oben gesehen links C, Mitte B, rechts E. Kurz löten, damit er nicht zu heiß wird.</span></label></li>
+      <li><label><input type="checkbox" id="p5"><span class="txt">TSOP34836 links, TSMP98000 rechts daneben, Linsen nach vorn. Von oben gesehen liegt VS links und OUT rechts.</span></label></li>
+      <li><label><input type="checkbox" id="p6"><span class="txt">C2: Minus-Streifen nach links (GND), Plus nach rechts (5V).</span></label></li>
+      <li><label><input type="checkbox" id="p7"><span class="txt">IR-LED zuletzt: langes Bein (A+) links, kurzes Bein (K−) rechts. Die Beine 90° umbiegen, sodass die LED flach über der vorderen Kante liegt und nach vorn zeigt.</span></label></li>
+      <li><label><input type="checkbox" id="p8"><span class="txt">Alle Lötbahnen auf der Unterseite ziehen. Danach jede Bahn mit dem Plan abhaken.</span></label></li>
+      <li><label><input type="checkbox" id="p9"><span class="txt">Mit dem Durchgangsprüfer an J1 messen: zwischen 5V und GND, 3V und GND sowie TX und RX darf es <b>nicht</b> piepen. GND an J1 muss mit E von Q1 und dem Mittelbein beider Empfänger piepen.</span></label></li>
+      <li><label><input type="checkbox" id="p10"><span class="txt">Die 6 Kabel nach der Tabelle an den QT Py stecken, USB anschließen und <span class="mono">.venv/bin/python hwtest.py</span> laufen lassen. Weil LED und Empfänger jetzt in dieselbe Richtung zeigen, ein weißes Blatt Papier etwa 10 cm vor das Modul halten. Das Echo kommt dann über die Reflexion zurück.</span></label></li>
+    </ol>
+  </div>
+  <div class="progress" id="progress2" aria-live="polite"></div>
+</section>
+
+<section id="wing">
+  <h2>Lötplan: FeatherWing Proto (für den ESP32-S3 Feather)</h2>
+  <p class="lead">Dasselbe IR-Modul passt auf die FeatherWing Proto (Adafruit 2884) und wird auf den ESP32-S3 Feather gesteckt. Kabel und Stiftleiste J1 entfallen, weil jeder Feather-Pin ein eigenes Loch direkt neben dem Raster hat. Die Streifen für 3V und GND sind schon verbunden. Das Raster der Wing ist aus Adafruits Platinendatei übernommen: 5 Reihen × 18 Spalten. Die Anordnung hat eine Suche erzeugt, danach ist die Netzliste unabhängig geprüft: alle 10 Verbindungen vollständig, kein Loch doppelt belegt.</p>
+  <div class="alert"><strong>Anders als auf der Lochrasterplatine:</strong> R3 ist <b>ein einzelner Widerstand</b>. 33 Ω (etwa 100 mA) ist der Sollwert. Bis der da ist, passt in dieselben Löcher dein 47 Ω (etwa 70 mA); 3–4 m Reichweite schafft auch der. Die Empfänger hängen an <b>A0</b> (TSOP) und <b>A4</b> (TSMP), die IR-LED an <b>TX</b>. Das muss später in code.py eingestellt werden.</div>
+  <div class="legend">
+    <span><i class="sw pcbtr"></i>Lötbahn auf der Unterseite</span>
+    <span><i class="sw pcbjmp"></i>Drahtbrücke oben (unten gestrichelt)</span>
+    <span><i class="sw new"></i>Bauteil</span>
+  </div>
+  <div class="pcbviews">
+    <figure class="panel">
+      <figcaption>Bauteilseite, von oben (16-Pin-Seite unten)</figcaption>
+      <div class="scroll">
+<svg class="pcbv wingv" viewBox="0 0 740 446" role="img"><title>FeatherWing Proto von oben: links die Streifen 3V und GND, unten TSOP34836 an A0 und TSMP98000 an A4, rechts Q1 und die IR-LED an TX, oben R3 von USB (5V)</title>
+<rect x="30" y="70" width="680" height="306" rx="8" class="wingpcb"/>
+<circle cx="64.0" cy="104.0" r="13" class="mhole"/>
+<circle cx="64.0" cy="342.0" r="13" class="mhole"/>
+<circle cx="676.0" cy="104.0" r="13" class="mhole"/>
+<circle cx="676.0" cy="342.0" r="13" class="mhole"/>
+<rect x="175.0" y="79.0" width="16" height="220.0" rx="8" class="strip"/>
+<text x="183.0" y="60.0" text-anchor="middle" class="lbu">3V</text>
+<rect x="209.0" y="79.0" width="16" height="220.0" rx="8" class="strip"/>
+<text x="217.0" y="60.0" text-anchor="middle" class="lbu">GND</text>
+<circle cx="47.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="325.0" r="3.4" class="hole"/>
+<rect x="246.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="280.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="314.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="348.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="382.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="416.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="450.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="484.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="518.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="552.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="586.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="620.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="110.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="144.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="178.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="212.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="246.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="280.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="314.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="348.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="382.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="416.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="450.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="484.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="518.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="552.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="586.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="620.0" y="354.0" width="10" height="10" class="hdrp"/>
+<text x="251.0" y="60.0" text-anchor="middle" class="lbq">BAT</text>
+<text x="285.0" y="60.0" text-anchor="middle" class="lbq">EN</text>
+<text x="319.0" y="60.0" text-anchor="middle" class="lbu">USB</text>
+<text x="353.0" y="60.0" text-anchor="middle" class="lbq">D13</text>
+<text x="387.0" y="60.0" text-anchor="middle" class="lbq">D12</text>
+<text x="421.0" y="60.0" text-anchor="middle" class="lbq">D11</text>
+<text x="455.0" y="60.0" text-anchor="middle" class="lbq">D10</text>
+<text x="489.0" y="60.0" text-anchor="middle" class="lbq">D9</text>
+<text x="523.0" y="60.0" text-anchor="middle" class="lbq">D6</text>
+<text x="557.0" y="60.0" text-anchor="middle" class="lbq">D5</text>
+<text x="591.0" y="60.0" text-anchor="middle" class="lbq">SCL</text>
+<text x="625.0" y="60.0" text-anchor="middle" class="lbq">SDA</text>
+<text x="115.0" y="394.0" text-anchor="middle" class="lbq">RST</text>
+<text x="149.0" y="394.0" text-anchor="middle" class="lbq">3V</text>
+<text x="183.0" y="394.0" text-anchor="middle" class="lbq">AREF</text>
+<text x="217.0" y="394.0" text-anchor="middle" class="lbu">GND</text>
+<text x="251.0" y="394.0" text-anchor="middle" class="lbu">A0</text>
+<text x="285.0" y="394.0" text-anchor="middle" class="lbq">A1</text>
+<text x="319.0" y="394.0" text-anchor="middle" class="lbq">A2</text>
+<text x="353.0" y="394.0" text-anchor="middle" class="lbq">A3</text>
+<text x="387.0" y="394.0" text-anchor="middle" class="lbu">A4</text>
+<text x="421.0" y="394.0" text-anchor="middle" class="lbq">A5</text>
+<text x="455.0" y="394.0" text-anchor="middle" class="lbq">SCK</text>
+<text x="489.0" y="394.0" text-anchor="middle" class="lbq">MO</text>
+<text x="523.0" y="394.0" text-anchor="middle" class="lbq">MI</text>
+<text x="557.0" y="394.0" text-anchor="middle" class="lbq">RX</text>
+<text x="591.0" y="394.0" text-anchor="middle" class="lbu">TX</text>
+<text x="625.0" y="394.0" text-anchor="middle" class="lbq">DB</text>
+<text x="387.0" y="410.0" text-anchor="middle" class="lbv">TSMP</text>
+<text x="251.0" y="410.0" text-anchor="middle" class="lbv">TSOP</text>
+<text x="591.0" y="410.0" text-anchor="middle" class="lbv">IR-LED</text>
+<text x="319.0" y="44.0" text-anchor="middle" class="lbv">5V</text>
+<line x1="591.0" y1="223.0" x2="591.0" y2="189.0" class="tru"/>
+<line x1="591.0" y1="257.0" x2="591.0" y2="223.0" class="tru"/>
+<line x1="625.0" y1="257.0" x2="591.0" y2="257.0" class="tru"/>
+<line x1="591.0" y1="189.0" x2="557.0" y2="189.0" class="tru"/>
+<line x1="659.0" y1="223.0" x2="625.0" y2="223.0" class="tru"/>
+<line x1="659.0" y1="257.0" x2="659.0" y2="223.0" class="tru"/>
+<line x1="659.0" y1="291.0" x2="659.0" y2="257.0" class="tru"/>
+<line x1="557.0" y1="155.0" x2="523.0" y2="155.0" class="tru"/>
+<line x1="591.0" y1="155.0" x2="557.0" y2="155.0" class="tru"/>
+<line x1="625.0" y1="155.0" x2="591.0" y2="155.0" class="tru"/>
+<line x1="625.0" y1="189.0" x2="625.0" y2="155.0" class="tru"/>
+<line x1="659.0" y1="189.0" x2="625.0" y2="189.0" class="tru"/>
+<line x1="693.0" y1="189.0" x2="659.0" y2="189.0" class="tru"/>
+<line x1="693.0" y1="223.0" x2="693.0" y2="189.0" class="tru"/>
+<line x1="693.0" y1="257.0" x2="693.0" y2="223.0" class="tru"/>
+<line x1="693.0" y1="291.0" x2="693.0" y2="257.0" class="tru"/>
+<line x1="319.0" y1="121.0" x2="319.0" y2="155.0" class="tru"/>
+<line x1="353.0" y1="155.0" x2="387.0" y2="155.0" class="tru"/>
+<line x1="319.0" y1="155.0" x2="353.0" y2="155.0" class="tru"/>
+<line x1="251.0" y1="291.0" x2="251.0" y2="325.0" class="tru"/>
+<line x1="387.0" y1="291.0" x2="387.0" y2="325.0" class="tru"/>
+<line x1="387.0" y1="257.0" x2="387.0" y2="223.0" class="tru"/>
+<line x1="387.0" y1="291.0" x2="387.0" y2="257.0" class="tru"/>
+<line x1="489.0" y1="291.0" x2="523.0" y2="291.0" class="tru"/>
+<line x1="455.0" y1="291.0" x2="489.0" y2="291.0" class="tru"/>
+<line x1="489.0" y1="257.0" x2="489.0" y2="223.0" class="tru"/>
+<line x1="489.0" y1="291.0" x2="489.0" y2="257.0" class="tru"/>
+<line x1="353.0" y1="257.0" x2="319.0" y2="257.0" class="tru"/>
+<line x1="319.0" y1="257.0" x2="319.0" y2="291.0" class="tru"/>
+<line x1="285.0" y1="257.0" x2="285.0" y2="291.0" class="tru"/>
+<line x1="251.0" y1="257.0" x2="285.0" y2="257.0" class="tru"/>
+<line x1="217.0" y1="257.0" x2="251.0" y2="257.0" class="tru"/>
+<line x1="285.0" y1="189.0" x2="319.0" y2="189.0" class="tru"/>
+<line x1="251.0" y1="189.0" x2="285.0" y2="189.0" class="tru"/>
+<line x1="217.0" y1="189.0" x2="251.0" y2="189.0" class="tru"/>
+<line x1="387.0" y1="189.0" x2="421.0" y2="189.0" class="tru"/>
+<line x1="353.0" y1="189.0" x2="387.0" y2="189.0" class="tru"/>
+<line x1="319.0" y1="189.0" x2="353.0" y2="189.0" class="tru"/>
+<line x1="421.0" y1="257.0" x2="421.0" y2="291.0" class="tru"/>
+<line x1="421.0" y1="223.0" x2="421.0" y2="257.0" class="tru"/>
+<line x1="421.0" y1="189.0" x2="421.0" y2="223.0" class="tru"/>
+<line x1="523.0" y1="223.0" x2="523.0" y2="257.0" class="tru"/>
+<line x1="523.0" y1="189.0" x2="523.0" y2="223.0" class="tru"/>
+<line x1="489.0" y1="189.0" x2="523.0" y2="189.0" class="tru"/>
+<line x1="455.0" y1="189.0" x2="489.0" y2="189.0" class="tru"/>
+<line x1="421.0" y1="189.0" x2="455.0" y2="189.0" class="tru"/>
+<line x1="591.0" y1="291.0" x2="625.0" y2="291.0" class="tru"/>
+<line x1="557.0" y1="291.0" x2="591.0" y2="291.0" class="tru"/>
+<line x1="557.0" y1="257.0" x2="557.0" y2="291.0" class="tru"/>
+<line x1="523.0" y1="257.0" x2="557.0" y2="257.0" class="tru"/>
+<line x1="489.0" y1="257.0" x2="353.0" y2="257.0" class="jmp"/>
+<circle cx="489.0" cy="257.0" r="4.5" class="jmpd"/>
+<circle cx="353.0" cy="257.0" r="4.5" class="jmpd"/>
+<line x1="183.0" y1="257.0" x2="319.0" y2="257.0" class="leg"/>
+<rect x="200.0" y="249.5" width="102.0" height="15" rx="5" class="body"/>
+<text x="251.0" y="261.0" text-anchor="middle" class="lbn2">R1 100 Ω</text>
+<circle cx="183.0" cy="257.0" r="4" class="legd"/>
+<circle cx="319.0" cy="257.0" r="4" class="legd"/>
+<line x1="387.0" y1="223.0" x2="489.0" y2="223.0" class="leg"/>
+<rect x="387.0" y="215.5" width="102.0" height="15" rx="5" class="body"/>
+<text x="438.0" y="227.0" text-anchor="middle" class="lbn2">R2 4,7 kΩ</text>
+<circle cx="387.0" cy="223.0" r="4" class="legd"/>
+<circle cx="489.0" cy="223.0" r="4" class="legd"/>
+<line x1="387.0" y1="155.0" x2="523.0" y2="155.0" class="leg"/>
+<rect x="404.0" y="147.5" width="102.0" height="15" rx="5" class="body"/>
+<text x="455.0" y="159.0" text-anchor="middle" class="lbn2">R3 33 Ω</text>
+<circle cx="387.0" cy="155.0" r="4" class="legd"/>
+<circle cx="523.0" cy="155.0" r="4" class="legd"/>
+<line x1="591.0" y1="325.0" x2="591.0" y2="189.0" class="leg"/>
+<rect x="583.5" y="206.0" width="15" height="102.0" rx="5" class="body"/>
+<text x="579.0" y="255.0" text-anchor="end" class="lbn">R4</text>
+<text x="579.0" y="269.0" text-anchor="end" class="lbv">220 Ω</text>
+<circle cx="591.0" cy="325.0" r="4" class="legd"/>
+<circle cx="591.0" cy="189.0" r="4" class="legd"/>
+<line x1="557.0" y1="189.0" x2="421.0" y2="189.0" class="leg"/>
+<rect x="438.0" y="181.5" width="102.0" height="15" rx="5" class="body"/>
+<text x="489.0" y="193.0" text-anchor="middle" class="lbn2">R5 10 kΩ</text>
+<circle cx="557.0" cy="189.0" r="4" class="legd"/>
+<circle cx="421.0" cy="189.0" r="4" class="legd"/>
+<rect x="514.0" y="249.0" width="18.0" height="50.0" rx="8" class="body"/>
+<circle cx="523.0" cy="291.0" r="4" class="legd"/>
+<circle cx="523.0" cy="257.0" r="4" class="legd"/>
+<text x="523.0" y="245.0" text-anchor="middle" class="lbn">C1</text>
+<circle cx="319.0" cy="172.0" r="20" class="body"/>
+<path d="M 300.7 180.0 A 20 20 0 0 0 337.3 180.0 Z" class="stripe"/>
+<circle cx="319.0" cy="155.0" r="4" class="legd"/>
+<circle cx="319.0" cy="189.0" r="4" class="legd"/>
+<text x="319.0" y="131.0" text-anchor="middle" class="lbn">C2 +</text>
+<rect x="236.0" y="279.0" width="98.0" height="38" rx="5" class="body"/>
+<path d="M 273.0 317.0 A 12 12 0 0 0 297.0 317.0" class="body"/>
+<text x="285.0" y="312.0" text-anchor="middle" class="lbn">TSOP34836</text>
+<circle cx="251.0" cy="291.0" r="4" class="legd"/>
+<text x="251.0" y="283.0" text-anchor="middle" class="lbp">OUT</text>
+<circle cx="285.0" cy="291.0" r="4" class="legd"/>
+<text x="285.0" y="283.0" text-anchor="middle" class="lbp">GND</text>
+<circle cx="319.0" cy="291.0" r="4" class="legd"/>
+<text x="319.0" y="283.0" text-anchor="middle" class="lbp">VS</text>
+<rect x="372.0" y="279.0" width="98.0" height="38" rx="5" class="body"/>
+<path d="M 409.0 317.0 A 12 12 0 0 0 433.0 317.0" class="body"/>
+<text x="421.0" y="312.0" text-anchor="middle" class="lbn">TSMP98000</text>
+<circle cx="387.0" cy="291.0" r="4" class="legd"/>
+<text x="387.0" y="283.0" text-anchor="middle" class="lbp">OUT</text>
+<circle cx="421.0" cy="291.0" r="4" class="legd"/>
+<text x="421.0" y="283.0" text-anchor="middle" class="lbp">GND</text>
+<circle cx="455.0" cy="291.0" r="4" class="legd"/>
+<text x="455.0" y="283.0" text-anchor="middle" class="lbp">VS</text>
+<path d="M 635.0 209.0 L 635.0 305.0 A 40 52 0 0 1 635.0 209.0 Z" class="body"/>
+<line x1="635.0" y1="209.0" x2="635.0" y2="305.0" class="flat"/>
+<circle cx="625.0" cy="291.0" r="4" class="legd"/>
+<text x="618.0" y="295.0" text-anchor="end" class="lbp">E</text>
+<circle cx="625.0" cy="257.0" r="4" class="legd"/>
+<text x="618.0" y="261.0" text-anchor="end" class="lbp">B</text>
+<circle cx="625.0" cy="223.0" r="4" class="legd"/>
+<text x="618.0" y="227.0" text-anchor="end" class="lbp">C</text>
+<text x="621.0" y="203.0" text-anchor="middle" class="lbn">Q1</text>
+<line x1="693.0" y1="291.0" x2="693.0" y2="340.0" class="leg"/>
+<circle cx="693.0" cy="291.0" r="4" class="legd"/>
+<line x1="659.0" y1="291.0" x2="659.0" y2="340.0" class="leg"/>
+<circle cx="659.0" cy="291.0" r="4" class="legd"/>
+<rect x="656.0" y="336.0" width="40" height="7" rx="2" class="body"/>
+<path d="M 660.0 343.0 L 660.0 378.0 A 16 16 0 0 0 692.0 378.0 L 692.0 343.0 Z" class="body"/>
+<line x1="656.0" y1="334.0" x2="656.0" y2="345.0" class="flat"/>
+<text x="693.0" y="282.0" text-anchor="middle" class="lbp">A+</text>
+<text x="659.0" y="282.0" text-anchor="middle" class="lbp">K−</text>
+<text x="676.0" y="396.0" text-anchor="middle" class="lbn">IR-LED</text>
+</svg>
+      </div>
+    </figure>
+    <figure class="panel">
+      <figcaption>Lötseite, von unten (gespiegelt)</figcaption>
+      <div class="scroll">
+<svg class="pcbv wingv" viewBox="0 0 740 446" role="img"><title>FeatherWing Proto von unten, gespiegelt</title>
+<rect x="30" y="70" width="680" height="306" rx="8" class="wingpcb"/>
+<circle cx="676.0" cy="104.0" r="13" class="mhole"/>
+<circle cx="676.0" cy="342.0" r="13" class="mhole"/>
+<circle cx="64.0" cy="104.0" r="13" class="mhole"/>
+<circle cx="64.0" cy="342.0" r="13" class="mhole"/>
+<rect x="549.0" y="79.0" width="16" height="220.0" rx="8" class="strip"/>
+<text x="557.0" y="60.0" text-anchor="middle" class="lbu">3V</text>
+<rect x="515.0" y="79.0" width="16" height="220.0" rx="8" class="strip"/>
+<text x="523.0" y="60.0" text-anchor="middle" class="lbu">GND</text>
+<circle cx="693.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="693.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="659.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="81.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="155.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="189.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="223.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="257.0" r="3.4" class="hole"/>
+<circle cx="47.0" cy="291.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="87.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="121.0" r="3.4" class="hole"/>
+<circle cx="625.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="591.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="557.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="523.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="489.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="455.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="421.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="387.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="353.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="319.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="285.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="251.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="217.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="183.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="149.0" cy="325.0" r="3.4" class="hole"/>
+<circle cx="115.0" cy="325.0" r="3.4" class="hole"/>
+<rect x="484.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="450.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="416.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="382.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="348.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="314.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="280.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="246.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="212.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="178.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="144.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="110.0" y="82.0" width="10" height="10" class="hdrp"/>
+<rect x="620.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="586.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="552.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="518.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="484.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="450.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="416.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="382.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="348.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="314.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="280.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="246.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="212.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="178.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="144.0" y="354.0" width="10" height="10" class="hdrp"/>
+<rect x="110.0" y="354.0" width="10" height="10" class="hdrp"/>
+<text x="489.0" y="60.0" text-anchor="middle" class="lbq">BAT</text>
+<text x="455.0" y="60.0" text-anchor="middle" class="lbq">EN</text>
+<text x="421.0" y="60.0" text-anchor="middle" class="lbu">USB</text>
+<text x="387.0" y="60.0" text-anchor="middle" class="lbq">D13</text>
+<text x="353.0" y="60.0" text-anchor="middle" class="lbq">D12</text>
+<text x="319.0" y="60.0" text-anchor="middle" class="lbq">D11</text>
+<text x="285.0" y="60.0" text-anchor="middle" class="lbq">D10</text>
+<text x="251.0" y="60.0" text-anchor="middle" class="lbq">D9</text>
+<text x="217.0" y="60.0" text-anchor="middle" class="lbq">D6</text>
+<text x="183.0" y="60.0" text-anchor="middle" class="lbq">D5</text>
+<text x="149.0" y="60.0" text-anchor="middle" class="lbq">SCL</text>
+<text x="115.0" y="60.0" text-anchor="middle" class="lbq">SDA</text>
+<text x="625.0" y="394.0" text-anchor="middle" class="lbq">RST</text>
+<text x="591.0" y="394.0" text-anchor="middle" class="lbq">3V</text>
+<text x="557.0" y="394.0" text-anchor="middle" class="lbq">AREF</text>
+<text x="523.0" y="394.0" text-anchor="middle" class="lbu">GND</text>
+<text x="489.0" y="394.0" text-anchor="middle" class="lbu">A0</text>
+<text x="455.0" y="394.0" text-anchor="middle" class="lbq">A1</text>
+<text x="421.0" y="394.0" text-anchor="middle" class="lbq">A2</text>
+<text x="387.0" y="394.0" text-anchor="middle" class="lbq">A3</text>
+<text x="353.0" y="394.0" text-anchor="middle" class="lbu">A4</text>
+<text x="319.0" y="394.0" text-anchor="middle" class="lbq">A5</text>
+<text x="285.0" y="394.0" text-anchor="middle" class="lbq">SCK</text>
+<text x="251.0" y="394.0" text-anchor="middle" class="lbq">MO</text>
+<text x="217.0" y="394.0" text-anchor="middle" class="lbq">MI</text>
+<text x="183.0" y="394.0" text-anchor="middle" class="lbq">RX</text>
+<text x="149.0" y="394.0" text-anchor="middle" class="lbu">TX</text>
+<text x="115.0" y="394.0" text-anchor="middle" class="lbq">DB</text>
+<text x="353.0" y="410.0" text-anchor="middle" class="lbv">TSMP</text>
+<text x="489.0" y="410.0" text-anchor="middle" class="lbv">TSOP</text>
+<text x="149.0" y="410.0" text-anchor="middle" class="lbv">IR-LED</text>
+<text x="421.0" y="44.0" text-anchor="middle" class="lbv">5V</text>
+<line x1="149.0" y1="223.0" x2="149.0" y2="189.0" class="trs"/>
+<line x1="149.0" y1="257.0" x2="149.0" y2="223.0" class="trs"/>
+<line x1="115.0" y1="257.0" x2="149.0" y2="257.0" class="trs"/>
+<line x1="149.0" y1="189.0" x2="183.0" y2="189.0" class="trs"/>
+<line x1="81.0" y1="223.0" x2="115.0" y2="223.0" class="trs"/>
+<line x1="81.0" y1="257.0" x2="81.0" y2="223.0" class="trs"/>
+<line x1="81.0" y1="291.0" x2="81.0" y2="257.0" class="trs"/>
+<line x1="183.0" y1="155.0" x2="217.0" y2="155.0" class="trs"/>
+<line x1="149.0" y1="155.0" x2="183.0" y2="155.0" class="trs"/>
+<line x1="115.0" y1="155.0" x2="149.0" y2="155.0" class="trs"/>
+<line x1="115.0" y1="189.0" x2="115.0" y2="155.0" class="trs"/>
+<line x1="81.0" y1="189.0" x2="115.0" y2="189.0" class="trs"/>
+<line x1="47.0" y1="189.0" x2="81.0" y2="189.0" class="trs"/>
+<line x1="47.0" y1="223.0" x2="47.0" y2="189.0" class="trs"/>
+<line x1="47.0" y1="257.0" x2="47.0" y2="223.0" class="trs"/>
+<line x1="47.0" y1="291.0" x2="47.0" y2="257.0" class="trs"/>
+<line x1="421.0" y1="121.0" x2="421.0" y2="155.0" class="trs"/>
+<line x1="387.0" y1="155.0" x2="353.0" y2="155.0" class="trs"/>
+<line x1="421.0" y1="155.0" x2="387.0" y2="155.0" class="trs"/>
+<line x1="489.0" y1="291.0" x2="489.0" y2="325.0" class="trs"/>
+<line x1="353.0" y1="291.0" x2="353.0" y2="325.0" class="trs"/>
+<line x1="353.0" y1="257.0" x2="353.0" y2="223.0" class="trs"/>
+<line x1="353.0" y1="291.0" x2="353.0" y2="257.0" class="trs"/>
+<line x1="251.0" y1="291.0" x2="217.0" y2="291.0" class="trs"/>
+<line x1="285.0" y1="291.0" x2="251.0" y2="291.0" class="trs"/>
+<line x1="251.0" y1="257.0" x2="251.0" y2="223.0" class="trs"/>
+<line x1="251.0" y1="291.0" x2="251.0" y2="257.0" class="trs"/>
+<line x1="387.0" y1="257.0" x2="421.0" y2="257.0" class="trs"/>
+<line x1="421.0" y1="257.0" x2="421.0" y2="291.0" class="trs"/>
+<line x1="455.0" y1="257.0" x2="455.0" y2="291.0" class="trs"/>
+<line x1="489.0" y1="257.0" x2="455.0" y2="257.0" class="trs"/>
+<line x1="523.0" y1="257.0" x2="489.0" y2="257.0" class="trs"/>
+<line x1="455.0" y1="189.0" x2="421.0" y2="189.0" class="trs"/>
+<line x1="489.0" y1="189.0" x2="455.0" y2="189.0" class="trs"/>
+<line x1="523.0" y1="189.0" x2="489.0" y2="189.0" class="trs"/>
+<line x1="353.0" y1="189.0" x2="319.0" y2="189.0" class="trs"/>
+<line x1="387.0" y1="189.0" x2="353.0" y2="189.0" class="trs"/>
+<line x1="421.0" y1="189.0" x2="387.0" y2="189.0" class="trs"/>
+<line x1="319.0" y1="257.0" x2="319.0" y2="291.0" class="trs"/>
+<line x1="319.0" y1="223.0" x2="319.0" y2="257.0" class="trs"/>
+<line x1="319.0" y1="189.0" x2="319.0" y2="223.0" class="trs"/>
+<line x1="217.0" y1="223.0" x2="217.0" y2="257.0" class="trs"/>
+<line x1="217.0" y1="189.0" x2="217.0" y2="223.0" class="trs"/>
+<line x1="251.0" y1="189.0" x2="217.0" y2="189.0" class="trs"/>
+<line x1="285.0" y1="189.0" x2="251.0" y2="189.0" class="trs"/>
+<line x1="319.0" y1="189.0" x2="285.0" y2="189.0" class="trs"/>
+<line x1="149.0" y1="291.0" x2="115.0" y2="291.0" class="trs"/>
+<line x1="183.0" y1="291.0" x2="149.0" y2="291.0" class="trs"/>
+<line x1="183.0" y1="257.0" x2="183.0" y2="291.0" class="trs"/>
+<line x1="217.0" y1="257.0" x2="183.0" y2="257.0" class="trs"/>
+<circle cx="353.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="319.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="285.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="489.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="455.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="421.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="47.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="81.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="115.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="115.0" cy="257.0" r="6.5" class="pad"/>
+<circle cx="115.0" cy="223.0" r="6.5" class="pad"/>
+<circle cx="557.0" cy="257.0" r="6.5" class="pad"/>
+<circle cx="421.0" cy="257.0" r="6.5" class="pad"/>
+<circle cx="353.0" cy="223.0" r="6.5" class="pad"/>
+<circle cx="251.0" cy="223.0" r="6.5" class="pad"/>
+<circle cx="353.0" cy="155.0" r="6.5" class="pad"/>
+<circle cx="217.0" cy="155.0" r="6.5" class="pad"/>
+<circle cx="149.0" cy="325.0" r="6.5" class="pad"/>
+<circle cx="149.0" cy="189.0" r="6.5" class="pad"/>
+<circle cx="183.0" cy="189.0" r="6.5" class="pad"/>
+<circle cx="319.0" cy="189.0" r="6.5" class="pad"/>
+<circle cx="217.0" cy="291.0" r="6.5" class="pad"/>
+<circle cx="217.0" cy="257.0" r="6.5" class="pad"/>
+<circle cx="421.0" cy="155.0" r="6.5" class="pad"/>
+<circle cx="421.0" cy="189.0" r="6.5" class="pad"/>
+<circle cx="251.0" cy="257.0" r="6.5" class="pad"/>
+<circle cx="387.0" cy="257.0" r="6.5" class="pad"/>
+<line x1="259.0" y1="257.0" x2="379.0" y2="257.0" class="jmpb"/>
+</svg>
+      </div>
+    </figure>
+  </div>
+  <p class="lead">Empfänger und IR-LED zeigen zur 16-Pin-Kante, also zur selben Seite. Die LED liegt flach und ragt über die Kante hinaus.</p>
+  <div class="panel scroll">
+    <table>
+      <thead><tr><th>Teil</th><th>Wert</th><th>Einbau</th></tr></thead>
+      <tbody>
+        <tr><td class="pin">R1</td><td>100 Ω</td><td>liegend, ein Bein im 3V-Streifen</td></tr>
+        <tr><td class="pin">R2</td><td>4,7 kΩ</td><td>liegend</td></tr>
+        <tr><td class="pin">R3</td><td>33 Ω (vorerst 47 Ω)</td><td>liegend, oben an der 12-Pin-Seite</td></tr>
+        <tr><td class="pin">R4</td><td>220 Ω</td><td>liegend, unteres Bein direkt im TX-Loch</td></tr>
+        <tr><td class="pin">R5</td><td>10 kΩ</td><td>liegend</td></tr>
+        <tr><td class="pin">C1</td><td>100 nF</td><td>Raster 2,54 mm</td></tr>
+        <tr><td class="pin">C2</td><td>100 µF</td><td>Minus-Streifen nach unten (zu R5), Plus oben am USB-Loch</td></tr>
+        <tr><td class="pin">Q1</td><td>2N2222A</td><td>senkrecht, flache Seite nach rechts zur LED: C oben, B Mitte, E unten. Etwa 3 mm hoch einsetzen, damit er über R4 steht</td></tr>
+        <tr><td class="pin">Drahtbrücke</td><td>Draht</td><td>4 Raster lang, oben über die Bahnen</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <ul class="notes">
+    <li>Zuerst die Stiftleisten an die Wing löten, damit die Pins sicher sitzen. Dann die Widerstände, C1, die Drahtbrücke, Q1 und die Empfänger, zuletzt C2 und die LED.</li>
+    <li>Die Bahnen auf der Unterseite liegen dicht neben den Pin-Löchern. Vor allem an A0, A4 und TX nur dort Zinn verbinden, wo der Plan eine Bahn zeigt.</li>
+    <li>Der Ausgang des TSOP sitzt direkt neben dem GND-Streifen. Dazwischen darf keine Brücke entstehen.</li>
+    <li>Vor dem ersten Aufstecken mit dem Durchgangsprüfer messen: zwischen USB und GND, 3V und GND sowie TX und GND darf es nicht piepen.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Danach</h2>
+  <ul class="notes">
+    <li><b>Eigentest des Senders:</b> In der seriellen Konsole <span class="mono">t</span> eingeben. Die IR-LED sendet ein Testmuster mit 36 kHz, und das Programm vergleicht, was die Empfänger davon sehen. Der TSMP muss etwa 36,0 kHz messen, und der TSOP muss alle 19 Pulse erkennen. Mit der Handykamera siehst du die LED dabei kurz aufleuchten.</li>
+    <li>Fernbedienung aus 10 bis 50 cm auf die beiden Empfänger richten, jede Taste zwei-, dreimal kurz drücken. Nach jeder Fernbedienungs-Taste einmal kurz auf den Taster an A2, damit die nächste Nummer zählt.</li>
+    <li>Die LED blitzt bei jeder Aufnahme. Bleibt sie dunkel, kommt nichts an: Pinbelegung und 3V prüfen, Fernbedienung mit der Handykamera auf IR prüfen.</li>
+    <li>Zeigt die Messung eher 38 kHz, tauschst du den TSOP34836 gegen den TSOP38238. Er hat dieselbe Belegung und kommt auf dieselben Löcher.</li>
+    <li>Ohne SD-Karte läuft alles trotzdem, die Aufnahmen gehen dann nur über USB an den Rechner.</li>
+    <li>Ist eine Taste aufgenommen, sendet <span class="mono">r</span> die letzte Aufnahme wieder aus, <span class="mono">r 5</span> die Aufnahme Nummer 5, <span class="mono">l</span> listet alle auf. Zur Haube zeigend ist das der erste echte Steuerversuch.</li>
+  </ul>
+</section>
+
+<footer>Werte aus den Datenblättern: TSMP98000 2,0–5,5 V, Pull-up 4,7 kΩ empfohlen; TSOP34836 2,5–5,5 V; TSAL6200 100 mA dauerhaft, 200 mA gepulst; 2N2222A im TO-92-Gehäuse E-B-C. Programm: <span class="mono">code.py</span> im Projektordner.</footer>
+
+</div>
+
+<script>
+(function () {
+  [["steps", "progress", "irlab-steckplan-steps", "Alles gesteckt."],
+   ["steps2", "progress2", "irlab-loetplan-steps", "Alles gelötet."]].forEach(function (c) { setup.apply(null, c); });
+  function setup(listId, outId, KEY, doneText) {
+  var boxes = Array.prototype.slice.call(document.querySelectorAll("#" + listId + " input"));
+  var out = document.getElementById(outId);
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+  function update() {
+    var done = boxes.filter(function (b) { return b.checked; }).length;
+    out.textContent = done === boxes.length ? doneText : done + " von " + boxes.length + " Schritten erledigt";
+  }
+  boxes.forEach(function (b) {
+    if (saved[b.id]) b.checked = true;
+    b.addEventListener("change", function () {
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      update();
+    });
+  });
+  update();
+  }
+})();
+</script>
+</body>
+</html>

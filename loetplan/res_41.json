@@ -1,0 +1,1 @@
+{"score": 41.0, "state": {"rxdir": "down", "pins": ["A4", "A0", "TX"], "ledflip": true, "q1flip": true, "tsop": 0, "tsmp": 8, "led": 24, "q1": 122, "R1": [true, 5, 75, false], "R2": [false, 58, 52, false], "R3": [true, 42, 113, false], "R4": [true, 85, 21, true], "R5": [true, 51, 35, true], "C1": [107, true], "C2": [41, false]}}
